@@ -31,7 +31,7 @@
 #
 # File: ovs-nxos.sh
 # Author: Philippe Latu
-# Source: https://github.com/platu/inetdoc/blob/master/guides/vm/files/ovs-nxos.sh
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
 #
 #	This program is free software: you can redistribute it and/or modify
 #	it under the terms of the GNU General Public License as published by
