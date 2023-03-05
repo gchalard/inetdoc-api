@@ -45,12 +45,14 @@ tap_mgmt=$1
 shift
 tap_g2=$1
 shift
+tap_g3=$1
+shift
 
 # Are the 3 parameters there ?
-if [[ -z "${vm}" || -z "${tap_mgmt}" || -z "${tap_g2}" ]]
+if [[ -z "${vm}" || -z "${tap_mgmt}" || -z "${tap_g2}" || -z "${tap_g3}" ]]
 then
 	echo -e "${RED}ERROR : missing parameter.${NC}"
-	echo -e "${GREEN}Usage : $0 [image file] [mgmt tap interface number] [in band tap interface number]${NC}"
+	echo -e "${GREEN}Usage : $0 [image file] [G1 mgmt tap interface number] [G2 tap interface number] [G3 tap interface number]${NC}"
 	exit 1
 fi
 
@@ -68,6 +70,19 @@ then
 	exit 1
 fi
 
+# Are the G2 and G3 interfaces mapped to a free tap interfaces ?
+if [[ ! -z "$(ps aux | grep =[t]ap${tap_g2}, )" ]]
+then
+	echo -e "${RED}Interface tap${tap_g2} is already in use.${NC}"
+	exit 1
+fi
+
+if [[ ! -z "$(ps aux | grep =[t]ap${tap_g3}, )" ]]
+then
+	echo -e "${RED}Interface tap${tap_g3} is already in use.${NC}"
+	exit 1
+fi
+
 # Are the OVMF symlink and file copy there ?
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
@@ -82,6 +97,8 @@ fi
 # OOB port mgmt0
 spice=$((7900 + ${tap_mgmt}))
 telnet=$((7000 + ${tap_mgmt}))
+
+# Out of band GigabitEthernet1
 second_rightmost_byte=$(printf "%02x" $(expr ${tap_mgmt} / 256))
 rightmost_byte=$(printf "%02x" $(expr ${tap_mgmt} % 256))
 macaddressG1="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
@@ -100,6 +117,11 @@ second_rightmost_byte=$(printf "%02x" $(expr $((${tap_g2})) / 256))
 rightmost_byte=$(printf "%02x" $(expr $((${tap_g2})) % 256))
 macaddressG2="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
 
+# In band GigabitEthernet3
+second_rightmost_byte=$(printf "%02x" $(expr $((${tap_g3})) / 256))
+rightmost_byte=$(printf "%02x" $(expr $((${tap_g3})) % 256))
+macaddressG3="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
+
 # RAM size
 memory=8192
 
@@ -108,10 +130,12 @@ echo -e "~> Router name                : ${RED}${vm}${NC}"
 echo -e "~> RAM size                   : ${RED}${memory}MB${NC}"
 echo -e "~> SPICE VDI port number      : ${GREEN}${spice}${NC}"
 echo -e "~> telnet console port number : ${GREEN}${telnet}${NC}"
-echo -e "~> mgmt0 tap interface        : ${BLUE}tap${tap_mgmt}, ${vlan_mode} mode${NC}"
-echo -ne "~> GE2 tap interface          : ${BLUE}tap${tap_g2}"
+echo -e "~> mgmt G1 tap interface      : ${BLUE}tap${tap_mgmt}, ${vlan_mode} mode${NC}"
+echo -e "~> mgmt G1 IPv6 LL address    : ${BLUE}${lladdress}%${svi}${NC}"
+echo -ne "~> G2 tap interface           : ${BLUE}tap${tap_g2}"
 echo -e ", $(sudo ovs-vsctl list port tap${tap_g2} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
-echo -e "~> IPv6 LL address            : ${BLUE}${lladdress}%${svi}${NC}"
+echo -ne "~> G3 tap interface           : ${BLUE}tap${tap_g3}"
+echo -e ", $(sudo ovs-vsctl list port tap${tap_g3} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
 tput sgr0
 
 ionice -c3 qemu-system-x86_64 \
@@ -150,4 +174,6 @@ ionice -c3 qemu-system-x86_64 \
 	-netdev tap,queues=2,ifname=tap${tap_mgmt},id=net${tap_mgmt},script=no,downscript=no,vhost=on \
 	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net${tap_g2},mac=${macaddressG2} \
 	-netdev tap,queues=2,ifname=tap${tap_g2},id=net${tap_g2},script=no,downscript=no,vhost=on \
+	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net${tap_g3},mac=${macaddressG3} \
+	-netdev tap,queues=2,ifname=tap${tap_g3},id=net${tap_g3},script=no,downscript=no,vhost=on \
 	$*
