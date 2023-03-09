@@ -3,22 +3,22 @@
 # This script is part of https://inetdoc.net project
 # 
 # It starts a qemu/kvm x86 CSR 1000v router which ports are plugged to Open
-# VSwitch ports through already existing tap interfaces.
-# It should be run by a normal user account which belongs to the kvm system
-# group and is able to run the ovs-vsctl command via sudo
+# VSwitch ports through already existing tap interfaces.  It should be run by a
+# normal user account which belongs to the kvm system group and is able to run
+# the ovs-vsctl command via sudo
 #
-# This script configures a CSR1000v instance that has two GigabitEthernet
-# ports: the first is considered the management OOB port and the second is the
-# in-band user traffic port.
+# This script configures a CSR1000v instance that has three GigabitEthernet
+# ports: the first is considered the management OOB port and the two other
+# ports are the in-band user traffic ports.
 # 
-# This version of the virtual machine startup script uses the UEFI boot sequence
-# based on the files provided by the ovmf package. 
-# The qemu parameters used here come from ovml package readme file
-# Source: https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
+# This version of the virtual machine startup script uses the UEFI boot
+# sequence based on the files provided by the ovmf package.  The qemu
+# parameters used here come from ovml package readme file Source:
+# https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
 #
-# File: ovs-csr1k.sh
+# File: ovs-iosxe.sh
 # Author: Philippe Latu
-# Source: https://github.com/platu/inetdoc/blob/master/guides/vm/files/ovs-csr1k.sh
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
 #
 #	This program is free software: you can redistribute it and/or modify
 #	it under the terms of the GNU General Public License as published by
@@ -138,7 +138,7 @@ echo -ne "~> G3 tap interface           : ${BLUE}tap${tap_g3}"
 echo -e ", $(sudo ovs-vsctl list port tap${tap_g3} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
 tput sgr0
 
-ionice -c3 qemu-system-x86_64 \
+ionice -c3 nohup qemu-system-x86_64 \
 	-machine type=q35,smm=on,accel=kvm:tcg,kernel-irqchip=split \
 	-cpu max,l3-cache=on \
 	-device intel-iommu,intremap=on \
@@ -176,4 +176,4 @@ ionice -c3 qemu-system-x86_64 \
 	-netdev tap,queues=2,ifname=tap${tap_g2},id=net${tap_g2},script=no,downscript=no,vhost=on \
 	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net${tap_g3},mac=${macaddressG3} \
 	-netdev tap,queues=2,ifname=tap${tap_g3},id=net${tap_g3},script=no,downscript=no,vhost=on \
-	$*
+	$* > ${vm}.out 2>&1

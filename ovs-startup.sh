@@ -3,18 +3,18 @@
 # This script is part of https://inetdoc.net project
 # 
 # It starts a qemu/kvm x86 virtual machine plugged into an Open VSwitch port
-# through an already existing tap interface.
-# It should be run by a normal user account which belongs to the kvm system
-# group and is able to run the ovs-vsctl command via sudo
+# through an already existing tap interface.  It should be run by a normal user
+# account which belongs to the kvm system group and is able to run the
+# ovs-vsctl command via sudo
 #
-# This version of the virtual machine startup script uses the UEFI boot sequence
-# based on the files provided by the ovmf package. 
-# The qemu parameters used here come from ovml package readme file
-# Source: https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
+# This version of the virtual machine startup script uses the UEFI boot
+# sequence based on the files provided by the ovmf package.  The qemu
+# parameters used here come from ovml package readme file Source:
+# https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
 #
 # File: ovs-startup.sh
 # Author: Philippe Latu
-# Source: https://github.com/platu/inetdoc/blob/master/guides/vm/files/ovs-startup.sh
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
 #
 #	This program is free software: you can redistribute it and/or modify
 #	it under the terms of the GNU General Public License as published by
@@ -104,12 +104,12 @@ then
 	kill ${tpm_pid}
 fi
 
-swtpm socket \
+nohup swtpm socket \
 	--tpmstate dir=${tpm_dir} \
 	--ctrl type=unixio,path=${tpm_dir}/swtpm-sock \
 	--log file=${tpm_dir}/swtpm.log \
 	--tpm2 \
-	--terminate &
+	--terminate >/dev/null 2>&1 &
 
 # Is the switch port available ? Which mode ? Which VLAN ?
 second_rightmost_byte=$(printf "%02x" $(expr ${tapnum} / 256))
@@ -155,7 +155,7 @@ echo -e "~> Switch port interface      : ${BLUE}tap${tapnum}, ${vlan_mode} mode$
 echo -e "~> IPv6 LL address            : ${BLUE}${lladdress}%${svi}${NC}"
 tput sgr0
 
-ionice -c3 qemu-system-x86_64 \
+ionice -c3 nohup qemu-system-x86_64 \
 	-machine type=q35,smm=on,accel=kvm:tcg,kernel-irqchip=split \
 	-cpu max,l3-cache=on,+vmx \
 	-device intel-iommu,intremap=on \
@@ -196,5 +196,5 @@ ionice -c3 qemu-system-x86_64 \
 	-device ich9-intel-hda,addr=1f.1 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
-	$*
+	$* > ${vm}.out 2>&1
 
