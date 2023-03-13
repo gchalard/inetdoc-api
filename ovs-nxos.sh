@@ -154,7 +154,7 @@ do
 done
 tput sgr0
 
-ionice -c3 qemu-system-x86_64 \
+ionice -c3 nohup qemu-system-x86_64 \
 	-machine type=q35,smm=on,accel=kvm,kernel-irqchip=split \
 	-cpu max,l3-cache=on \
 	-device intel-iommu,intremap=on \
@@ -193,4 +193,4 @@ ionice -c3 qemu-system-x86_64 \
 	-serial telnet:localhost:${telnet},server,nowait \
 	-netdev tap,ifname=nxtap${tap_mgmt},script=no,downscript=no,id=mgmt0 \
 	-device e1000,bus=bridge-1,addr=1.0,netdev=mgmt0,mac=${oui}ae:${second_rightmost_byte}:${rightmost_byte},multifunction=on,romfile= \
-	${ethPorts}
+	${ethPorts} > ${vm}.out 2>&1
