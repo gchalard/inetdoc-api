@@ -3,13 +3,9 @@
 # This script is part of https://inetdoc.net project
 # 
 # It starts a qemu/kvm x86 Nexus 9000v swicth which ports are plugged to Open
-# VSwitch ports through already existing tap interfaces named nxtap???.
-# 
-# Nexus 9000v qcow2 uses EFI BIOS. You can get the OVMF_CODE-pure-efi.fd file
-# following the recipe given at this address:
-# https://fabianlee.org/2018/09/12/kvm-building-the-latest-ovmf-firmware-for-virtual-machines/ 
+# VSwitch ports through already existing tap interfaces named nxtapXXX.
 #
-# The script should be run by a normal user account which belongs to the kvm
+# This script should be run by a normal user account which belongs to the kvm
 # system group and is able to run the ovs-vsctl command via sudo.
 #
 # Nexus to OvS port mapping is given by a yaml description file which is
@@ -132,7 +128,7 @@ memory=12288
 # Are the OVMF symlink and file copy there ?
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
-	ln -s /usr/share/OVMF/OVMF_CODE_4M.fd OVMF_CODE.fd
+	ln -s /usr/share/OVMF/OVMF_CODE_4M.fd ./OVMF_CODE.fd
 fi
 
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]

@@ -72,14 +72,24 @@ then
 fi
 
 # Are the OVMF symlink and file copy there ?
+if [ "$(readlink -- ./OVMF_CODE.fd)" = "/usr/share/OVMF/OVMF_CODE.fd" ]
+then
+	rm ./OVMF_CODE.fd
+fi
+
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
-	ln -s /usr/share/OVMF/OVMF_CODE_4M.fd ./OVMF_CODE.fd
+	ln -s /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ./OVMF_CODE.fd
 fi
 
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
-	cp /usr/share/OVMF/OVMF_VARS_4M.fd ${vm}_OVMF_VARS.fd
+	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
+	then # This may lead to GRUB reinstall after manual boot fron EFI Shell
+		cp /usr/share/OVMF/OVMF_VARS_4M.fd ${vm}_OVMF_VARS.fd
+	else
+		cp $HOME/masters/OVMF_VARS ${vm}_OVMF_VARS.fd
+	fi
 fi
 
 # Is it possible to set a new Software TPM socket ?
