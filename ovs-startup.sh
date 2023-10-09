@@ -56,6 +56,13 @@ then
 	exit 1
 fi
 
+# Is the VM image file already in use ?
+if pgrep -u $USER -l -f ${vm} | grep -v $$
+then
+	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
+	exit 1
+fi
+
 # Is the amount of ram sufficient to run the VM ?
 if [[ ${memory} -lt 128 ]]
 then
@@ -107,7 +114,7 @@ then
 	mkdir ${tpm_dir}
 fi
 
-# Is swtpm already there for this virtual machine
+# Is swtpm already there for this virtual machine ?
 tpm_pid=$(pgrep -u $USER -a swtpm | grep ${tpm_dir}/swtpm-sock | cut -f 1 -d ' ')
 if [[ ! -z "${tpm_pid}" ]]
 then
@@ -140,7 +147,7 @@ image_format="${vm##*.}"
 spice=$((5900 + ${tapnum}))
 telnet=$((2300 + ${tapnum}))
 
-# Is TPM socket is ready.
+# Is TPM socket is ready ?
 wait=0
 
 while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ $wait -lt 10 ]]
@@ -183,9 +190,8 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device i6300esb \
 	-watchdog-action poweroff \
 	-boot order=c,menu=on \
-	-object iothread,id=iothread.drive0 \
-	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format=${image_format},media=disk,l2-cache-size=8M,file=${vm} \
-	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
+	-drive if=none,id=drive0,format=${image_format},media=disk,file=${vm} \
+	-device nvme,drive=drive0,serial=feedcafe \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
 	-drive if=pflash,format=raw,unit=1,file=${vm}_OVMF_VARS.fd \

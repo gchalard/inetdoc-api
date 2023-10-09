@@ -3,18 +3,18 @@
 # This script is part of https://inetdoc.net project
 # 
 # It starts a qemu/kvm x86 virtual machine plugged into an Open VSwitch port
-# through an already existing tap interface.
-# It should be run by a normal user account which belongs to the kvm system
-# group and is able to run the ovs-vsctl command via sudo
+# through an already existing tap interface.  It should be run by a normal user
+# account which belongs to the kvm system group and is able to run the
+# ovs-vsctl command via sudo
 #
-# This version of virtual machine startup script uses UEFI boot sequence based
-# on the files provided by the ovmf package.
-# The qemu parameters used here come from ovml package readme file
-# Source: https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
+# This version of the virtual machine startup script uses the UEFI boot
+# sequence based on the files provided by the ovmf package.  The qemu
+# parameters used here come from ovml package readme file Source:
+# https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
 #
 # File: ovs-startup.sh
 # Author: Philippe Latu
-# Source: https://github.com/platu/inetdoc/blob/master/guides/vm/files/ovs-startup-efi.sh
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
 #
 #	This program is free software: you can redistribute it and/or modify
 #	it under the terms of the GNU General Public License as published by
@@ -76,14 +76,24 @@ then
 fi
 
 # Are the OVMF symlink and file copy there ?
+if [ "$(readlink -- ./OVMF_CODE.fd)" = "/usr/share/OVMF/OVMF_CODE.fd" ]
+then
+	rm ./OVMF_CODE.fd
+fi
+
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
-	ln -s /usr/share/OVMF/OVMF_CODE.fd .
+	ln -s /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ./OVMF_CODE.fd
 fi
 
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
-	cp /usr/share/OVMF/OVMF_VARS.fd ${vm}_OVMF_VARS.fd
+	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
+	then # This may lead to GRUB reinstall after manual boot fron EFI Shell
+		cp /usr/share/OVMF/OVMF_VARS_4M.fd ${vm}_OVMF_VARS.fd
+	else
+		cp $HOME/masters/OVMF_VARS ${vm}_OVMF_VARS.fd
+	fi
 fi
 
 # Is it possible to set a new Software TPM socket ?
@@ -101,19 +111,19 @@ then
 	mkdir ${tpm_dir}
 fi
 
-# Is swtpm already there for this virtual machine
+# Is swtpm already there for this virtual machine ?
 tpm_pid=$(pgrep -u $USER -a swtpm | grep ${tpm_dir}/swtpm-sock | cut -f 1 -d ' ')
 if [[ ! -z "${tpm_pid}" ]]
 then
 	kill ${tpm_pid}
 fi
 
-swtpm socket \
+nohup swtpm socket \
 	--tpmstate dir=${tpm_dir} \
 	--ctrl type=unixio,path=${tpm_dir}/swtpm-sock \
 	--log file=${tpm_dir}/swtpm.log \
 	--tpm2 \
-	--terminate &
+	--terminate >/dev/null 2>&1 &
 
 # Is the switch port available ? Which mode ? Which VLAN ?
 second_rightmost_byte=$(printf "%02x" $(expr ${tapnum} / 256))
@@ -134,6 +144,22 @@ image_format="${vm##*.}"
 spice=$((5900 + ${tapnum}))
 telnet=$((2300 + ${tapnum}))
 
+# Is TPM socket is ready ?
+wait=0
+
+while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ $wait -lt 10 ]]
+do
+	echo "Waiting a second for TPM socket to be ready."
+	sleep 1s
+	((wait++))
+done
+
+if [[ ${wait} -eq 10 ]]
+then
+	echo -e "${RED}TPM socket setup failed. Giving up.${NC}"
+	exit 1
+fi
+
 echo -e "~> Virtual machine filename   : ${RED}${vm}${NC}"
 echo -e "~> RAM size                   : ${RED}${memory}MB${NC}"
 echo -e "~> SPICE VDI port number      : ${GREEN}${spice}${NC}"
@@ -143,18 +169,20 @@ echo -e "~> Switch port interface      : ${BLUE}tap${tapnum}, ${vlan_mode} mode$
 echo -e "~> IPv6 LL address            : ${BLUE}${lladdress}%${svi}${NC}"
 tput sgr0
 
-ionice -c3 qemu-system-x86_64 \
-	-machine type=q35,accel=kvm:tcg,kernel-irqchip=split \
+ionice -c3 nohup qemu-system-x86_64 \
+	-machine type=q35,smm=on,accel=kvm:tcg,kernel-irqchip=split \
 	-cpu max,l3-cache=on,+vmx \
 	-device intel-iommu,intremap=on \
+	-smp cpus=4 \
 	-daemonize \
 	-name ${vm} \
 	-m ${memory} \
-	-device virtio-net-pci,mq=on,vectors=6,netdev=net${tapnum},disable-legacy=on,disable-modern=off,mac="${macaddress}" \
-	-netdev tap,queues=2,ifname=tap${tapnum},id=net${tapnum},script=no,downscript=no,vhost=on \
+	-global ICH9-LPC.disable_s3=1 \
+	-global ICH9-LPC.disable_s4=1 \
+	-device virtio-net-pci,mq=on,vectors=6,netdev=net${tapnum},disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
+	-netdev type=tap,queues=2,ifname=tap${tapnum},id=net${tapnum},script=no,downscript=no,vhost=on \
 	-serial telnet:localhost:${telnet},server,nowait \
 	-device virtio-balloon \
-	-smp 8,threads=4 \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
 	-watchdog-action poweroff \
@@ -164,9 +192,8 @@ ionice -c3 qemu-system-x86_64 \
 	-drive media=cdrom,if=none,file=${iso},id=drive-sata0-0-0 \
 	-device ide-cd,bus=ahci0.1,drive=drive-sata0-0-1,id=sata0-0-1 \
 	-drive media=cdrom,if=none,file=${virtio_iso},id=drive-sata0-0-1 \
-	-object "iothread,id=iothread.drive0" \
-	-drive if=none,id=drive0,aio=native,cache.direct=on,discard=unmap,format=${image_format},media=disk,l2-cache-size=8M,file=${vm} \
-	-device virtio-blk,num-queues=4,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
+	-drive if=none,id=drive0,format=${image_format},media=disk,file=${vm} \
+	-device nvme,drive=drive0,serial=cafe00 \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
 	-drive if=pflash,format=raw,unit=1,file=${vm}_OVMF_VARS.fd \
@@ -187,5 +214,5 @@ ionice -c3 qemu-system-x86_64 \
 	-device ich9-intel-hda,addr=1f.1 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
-	$*
+	$* > ${vm}.out 2>&1
 
