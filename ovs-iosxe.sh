@@ -94,6 +94,35 @@ then
 	cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
 fi
 
+# Is it possible to set a new Software TPM socket ?
+if [[ -z "$(which swtpm)" ]]
+then
+	echo -e "${RED}TPM emulator not available${NC}"
+	exit 1
+fi
+
+# Does the software TPM directory exists ?
+tpm_dir=${vm}_TPM
+
+if [[ ! -d "${tpm_dir}" ]]
+then
+	mkdir "${tpm_dir}"
+fi
+
+# Is swtpm already there for this virtual machine
+tpm_pid=$(pgrep -u "${USER}" -a swtpm | grep "${tpm_dir}/swtpm-sock" | cut -f 1 -d ' ')
+if [[ -n "${tpm_pid}" ]]
+then
+	kill "${tpm_pid}"
+fi
+
+nohup swtpm socket \
+	--tpmstate dir="${tpm_dir}" \
+	--ctrl type=unixio,path="${tpm_dir}/swtpm-sock" \
+	--log file="${tpm_dir}/swtpm.log" \
+	--tpm2 \
+	--terminate >/dev/null 2>&1 &
+
 # OOB port mgmt0
 spice=$((7900 + tap_mgmt))
 telnet=$((7000 + tap_mgmt))
@@ -123,7 +152,23 @@ rightmost_byte=$(printf "%02x" $((tap_g3 % 256)))
 macaddressG3="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
 
 # RAM size
-memory=8192
+memory=16384
+
+# Is TPM socket is ready.
+wait=0
+
+while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ $wait -lt 10 ]]
+do
+	echo "Waiting a second for TPM socket to be ready."
+	sleep 1s
+	((wait++))
+done
+
+if [[ ${wait} -eq 10 ]]
+then
+	echo -e "${RED}TPM socket setup failed. Giving up.${NC}"
+	exit 1
+fi
 
 echo -e "${RED}---${NC}"
 echo -e "~> Router name                : ${RED}${vm}${NC}"
@@ -152,7 +197,6 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
 	-watchdog-action poweroff \
-	-boot order=c,menu=on \
 	-object iothread,id=iothread.drive0 \
 	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
 	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
@@ -166,7 +210,9 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 \
 	-chardev spicevmc,id=spicechannel0,name=vdagent \
 	-object rng-random,filename=/dev/urandom,id=rng0 \
-	-device virtio-rng-pci,rng=rng0 \
+	-chardev socket,id=chrtpm,path="${tpm_dir}/swtpm-sock" \
+	-tpmdev emulator,id=tpm0,chardev=chrtpm \
+	-device tpm-tis,tpmdev=tpm0 \-device virtio-rng-pci,rng=rng0 \
 	-usb \
 	-device usb-tablet,bus=usb-bus.0 \
 	-serial telnet:localhost:${telnet},server,nowait \
