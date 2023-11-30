@@ -2,7 +2,7 @@
 
 # This script is part of https://inetdoc.net project
 # 
-# It starts a qemu/kvm x86 virtual machine plugged into an Open VSwitch port
+# It starts a qemu/kvm x86 virtual machine plugged into an Open vSwitch port
 # through an already existing tap interface.  It should be run by a normal user
 # account which belongs to the kvm system group and is able to run the
 # ovs-vsctl command via sudo
@@ -67,7 +67,7 @@ then
 fi
 
 # Is the tap interface free ?
-if [[ ! -z "$(ps aux | grep =[t]ap${tapnum}, )" ]]
+if [[ -n "$(pgrep -f "=[t]ap${tapnum},")" ]]
 then
 	echo -e "${RED}tap${tapnum} is already in use by another process.${NC}"
 	exit 1
@@ -88,9 +88,9 @@ if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
 	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
 	then # This may lead to GRUB reinstall after manual boot fron EFI Shell
-		cp /usr/share/OVMF/OVMF_VARS_4M.fd ${vm}_OVMF_VARS.fd
+		cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
 	else
-		cp $HOME/masters/OVMF_VARS ${vm}_OVMF_VARS.fd
+		cp "$HOME/masters/OVMF_VARS" "${vm}_OVMF_VARS.fd"
 	fi
 fi
 
@@ -106,41 +106,41 @@ tpm_dir=${vm}_TPM
 
 if [[ ! -d "${tpm_dir}" ]]
 then
-	mkdir ${tpm_dir}
+	mkdir "${tpm_dir}"
 fi
 
 # Is swtpm already there for this virtual machine
-tpm_pid=$(pgrep -u $USER -a swtpm | grep ${tpm_dir}/swtpm-sock | cut -f 1 -d ' ')
-if [[ ! -z "${tpm_pid}" ]]
+tpm_pid=$(pgrep -u "${USER}" -a swtpm | grep "${tpm_dir}/swtpm-sock" | cut -f 1 -d ' ')
+if [[ -n "${tpm_pid}" ]]
 then
-	kill ${tpm_pid}
+	kill "${tpm_pid}"
 fi
 
 nohup swtpm socket \
-	--tpmstate dir=${tpm_dir} \
-	--ctrl type=unixio,path=${tpm_dir}/swtpm-sock \
-	--log file=${tpm_dir}/swtpm.log \
+	--tpmstate dir="${tpm_dir}" \
+	--ctrl type=unixio,path="${tpm_dir}/swtpm-sock" \
+	--log file="${tpm_dir}/swtpm.log" \
 	--tpm2 \
 	--terminate >/dev/null 2>&1 &
 
 # Is the switch port available ? Which mode ? Which VLAN ?
-second_rightmost_byte=$(printf "%02x" $(expr ${tapnum} / 256))
-rightmost_byte=$(printf "%02x" $(expr ${tapnum} % 256))
+second_rightmost_byte=$(printf "%02x" $((tapnum / 256)))
+rightmost_byte=$(printf "%02x" $((tapnum % 256)))
 macaddress="b8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
-lladdress="fe80::baad:caff:fefe:$(printf "%x" ${tapnum})"
-vlan_mode="$(sudo ovs-vsctl list port tap${tapnum} | grep vlan_mode | egrep -o '(access|trunk)')"
+lladdress="fe80::baad:caff:fefe:$(printf "%x" "${tapnum}")"
+vlan_mode="$(sudo ovs-vsctl list port "tap${tapnum}" | grep vlan_mode | grep -Eo '(access|trunk)')"
 
 if [[ "$vlan_mode" == "access" ]]
 then
-	svi="vlan$(sudo ovs-vsctl list port tap${tapnum} | grep tag | grep -o -E '[0-9]+')"
+	svi="vlan$(sudo ovs-vsctl list port "tap${tapnum}" | grep tag | grep -Eo '[0-9]+')"
 else
 	svi="dsw-host"
 fi
 
 image_format="${vm##*.}"
 
-spice=$((5900 + ${tapnum}))
-telnet=$((2300 + ${tapnum}))
+spice=$((5900 + tapnum))
+telnet=$((2300 + tapnum))
 
 # Is TPM socket is ready.
 wait=0
@@ -173,12 +173,12 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device intel-iommu,intremap=on \
 	-smp cpus=4 \
 	-daemonize \
-	-name ${vm} \
-	-m ${memory} \
+	-name "${vm}" \
+	-m "${memory}" \
 	-global ICH9-LPC.disable_s3=1 \
 	-global ICH9-LPC.disable_s4=1 \
-	-device virtio-net-pci,mq=on,vectors=6,netdev=net${tapnum},disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
-	-netdev type=tap,queues=2,ifname=tap${tapnum},id=net${tapnum},script=no,downscript=no,vhost=on \
+	-device virtio-net-pci,mq=on,vectors=6,netdev=net"${tapnum}",disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
+	-netdev type=tap,queues=2,ifname=tap"${tapnum}",id=net"${tapnum}",script=no,downscript=no,vhost=on \
 	-serial telnet:localhost:${telnet},server,nowait \
 	-device virtio-balloon \
 	-rtc base=localtime,clock=host \
@@ -187,13 +187,13 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-boot once=d,menu=on \
 	-device ahci,id=ahci0 \
 	-device ide-cd,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0 \
-	-drive media=cdrom,if=none,file=$iso,id=drive-sata0-0-0 \
+	-drive media=cdrom,if=none,file="${iso}",id=drive-sata0-0-0 \
 	-object iothread,id=iothread.drive0 \
-	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format=${image_format},media=disk,l2-cache-size=8M,file=${vm} \
+	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
 	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
-	-drive if=pflash,format=raw,unit=1,file=${vm}_OVMF_VARS.fd \
+	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
 	-k fr \
 	-vga none \
 	-device qxl-vga,vgamem_mb=64 \
@@ -203,7 +203,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-chardev spicevmc,id=spicechannel0,name=vdagent \
 	-object rng-random,filename=/dev/urandom,id=rng0 \
 	-device virtio-rng-pci,rng=rng0 \
-	-chardev socket,id=chrtpm,path=${tpm_dir}/swtpm-sock \
+	-chardev socket,id=chrtpm,path="${tpm_dir}/swtpm-sock" \
 	-tpmdev emulator,id=tpm0,chardev=chrtpm \
 	-device tpm-tis,tpmdev=tpm0 \
 	-usb \
@@ -211,5 +211,5 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device ich9-intel-hda,addr=1f.1 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
-	$* > ${vm}.out 2>&1
+	"$@" > "${vm}.out" 2>&1
 

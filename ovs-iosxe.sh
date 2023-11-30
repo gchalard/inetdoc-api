@@ -3,7 +3,7 @@
 # This script is part of https://inetdoc.net project
 # 
 # It starts a qemu/kvm x86 CSR 1000v router which ports are plugged to Open
-# VSwitch ports through already existing tap interfaces.  It should be run by a
+# vSwitch ports through already existing tap interfaces.  It should be run by a
 # normal user account which belongs to the kvm system group and is able to run
 # the ovs-vsctl command via sudo
 #
@@ -64,20 +64,20 @@ then
 fi
 
 # Is the mgmt0 OOB interface mapped to a free tap interface ?
-if [[ ! -z "$(ps aux | grep =[t]ap${tap_mgmt}, )" ]]
+if [[  -n "$(pgrep -f "=[t]ap${tap_mgmt},")" ]]
 then
 	echo -e "${RED}Interface tap${tap_mgmt} is already in use.${NC}"
 	exit 1
 fi
 
 # Are the G2 and G3 interfaces mapped to a free tap interfaces ?
-if [[ ! -z "$(ps aux | grep =[t]ap${tap_g2}, )" ]]
+if [[ -n "$(pgrep -f "=[t]ap${tap_g2}," )" ]]
 then
 	echo -e "${RED}Interface tap${tap_g2} is already in use.${NC}"
 	exit 1
 fi
 
-if [[ ! -z "$(ps aux | grep =[t]ap${tap_g3}, )" ]]
+if [[ -n "$(pgrep -f "=[t]ap${tap_g3}," )" ]]
 then
 	echo -e "${RED}Interface tap${tap_g3} is already in use.${NC}"
 	exit 1
@@ -91,35 +91,35 @@ fi
 
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
-	cp /usr/share/OVMF/OVMF_VARS_4M.fd ${vm}_OVMF_VARS.fd
+	cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
 fi
 
 # OOB port mgmt0
-spice=$((7900 + ${tap_mgmt}))
-telnet=$((7000 + ${tap_mgmt}))
+spice=$((7900 + tap_mgmt))
+telnet=$((7000 + tap_mgmt))
 
 # Out of band GigabitEthernet1
-second_rightmost_byte=$(printf "%02x" $(expr ${tap_mgmt} / 256))
-rightmost_byte=$(printf "%02x" $(expr ${tap_mgmt} % 256))
+second_rightmost_byte=$(printf "%02x" $((tap_mgmt / 256)))
+rightmost_byte=$(printf "%02x" $((tap_mgmt % 256)))
 macaddressG1="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
-lladdress="fe80::faad:caff:fefe:$(printf "%x" ${tap_mgmt})"
-vlan_mode="$(sudo ovs-vsctl list port tap${tap_mgmt} | grep vlan_mode | egrep -o '(access|trunk)')"
+lladdress="fe80::faad:caff:fefe:$(printf "%x" "${tap_mgmt}")"
+vlan_mode="$(sudo ovs-vsctl list port "tap${tap_mgmt}" | grep vlan_mode | grep -Eo '(access|trunk)')"
 
 if [[ "$vlan_mode" == "access" ]]
 then
-	svi="vlan$(sudo ovs-vsctl list port tap${tap_mgmt} | grep tag | grep -o -E '[0-9]+')"
+	svi="vlan$(sudo ovs-vsctl list port "tap${tap_mgmt}" | grep tag | grep -Eo '[0-9]+')"
 else
 	svi="dsw-host"
 fi
 
 # In band GigabitEthernet2
-second_rightmost_byte=$(printf "%02x" $(expr $((${tap_g2})) / 256))
-rightmost_byte=$(printf "%02x" $(expr $((${tap_g2})) % 256))
+second_rightmost_byte=$(printf "%02x" $((tap_g2 / 256)))
+rightmost_byte=$(printf "%02x" $((tap_g2 % 256)))
 macaddressG2="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
 
 # In band GigabitEthernet3
-second_rightmost_byte=$(printf "%02x" $(expr $((${tap_g3})) / 256))
-rightmost_byte=$(printf "%02x" $(expr $((${tap_g3})) % 256))
+second_rightmost_byte=$(printf "%02x" $((tap_g3 / 256)))
+rightmost_byte=$(printf "%02x" $((tap_g3 % 256)))
 macaddressG3="f8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
 
 # RAM size
@@ -133,9 +133,9 @@ echo -e "~> telnet console port number : ${GREEN}${telnet}${NC}"
 echo -e "~> mgmt G1 tap interface      : ${BLUE}tap${tap_mgmt}, ${vlan_mode} mode${NC}"
 echo -e "~> mgmt G1 IPv6 LL address    : ${BLUE}${lladdress}%${svi}${NC}"
 echo -ne "~> G2 tap interface           : ${BLUE}tap${tap_g2}"
-echo -e ", $(sudo ovs-vsctl list port tap${tap_g2} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
+echo -e ", $(sudo ovs-vsctl list port "tap${tap_g2}" | grep vlan_mode | grep -Eo '(access|trunk)') mode${NC}"
 echo -ne "~> G3 tap interface           : ${BLUE}tap${tap_g3}"
-echo -e ", $(sudo ovs-vsctl list port tap${tap_g3} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
+echo -e ", $(sudo ovs-vsctl list port "tap${tap_g3}" | grep vlan_mode | grep -Eo '(access|trunk)') mode${NC}"
 tput sgr0
 
 ionice -c3 nohup qemu-system-x86_64 \
@@ -144,8 +144,8 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device intel-iommu,intremap=on \
 	-smp cpus=4 \
 	-daemonize \
-	-name ${vm} \
-	-m ${memory} \
+	-name "${vm}" \
+	-m "${memory}" \
 	-global ICH9-LPC.disable_s3=1 \
 	-global ICH9-LPC.disable_s4=1 \
 	--device virtio-balloon \
@@ -154,11 +154,11 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-watchdog-action poweroff \
 	-boot order=c,menu=on \
 	-object iothread,id=iothread.drive0 \
-	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format=${image_format},media=disk,l2-cache-size=8M,file=${vm} \
+	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
 	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
-	-drive if=pflash,format=raw,unit=1,file=${vm}_OVMF_VARS.fd \
+	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
 	-k fr \
 	-vga none \
 	-spice port=${spice},addr=localhost,disable-ticketing=on \
@@ -170,10 +170,10 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-usb \
 	-device usb-tablet,bus=usb-bus.0 \
 	-serial telnet:localhost:${telnet},server,nowait \
-	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net${tap_mgmt},mac=${macaddressG1} \
-	-netdev tap,queues=2,ifname=tap${tap_mgmt},id=net${tap_mgmt},script=no,downscript=no,vhost=on \
-	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net${tap_g2},mac=${macaddressG2} \
-	-netdev tap,queues=2,ifname=tap${tap_g2},id=net${tap_g2},script=no,downscript=no,vhost=on \
-	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net${tap_g3},mac=${macaddressG3} \
-	-netdev tap,queues=2,ifname=tap${tap_g3},id=net${tap_g3},script=no,downscript=no,vhost=on \
-	$* > ${vm}.out 2>&1
+	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net"${tap_mgmt}",mac="${macaddressG1}" \
+	-netdev tap,queues=2,ifname=tap"${tap_mgmt}",id=net"${tap_mgmt}",script=no,downscript=no,vhost=on \
+	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net"${tap_g2}",mac="${macaddressG2}" \
+	-netdev tap,queues=2,ifname=tap"${tap_g2}",id=net"${tap_g2}",script=no,downscript=no,vhost=on \
+	-device virtio-net-pci-non-transitional,mq=on,vectors=6,netdev=net"${tap_g3}",mac="${macaddressG3}" \
+	-netdev tap,queues=2,ifname=tap"${tap_g3}",id=net"${tap_g3}",script=no,downscript=no,vhost=on \
+	"$@" > "${vm}.out" 2>&1

@@ -3,7 +3,7 @@
 # This script is part of https://inetdoc.net project
 # 
 # It starts a qemu/kvm x86 Nexus 9000v swicth which ports are plugged to Open
-# VSwitch ports through already existing tap interfaces named nxtapXXX.
+# vSwitch ports through already existing tap interfaces named nxtapXXX.
 #
 # This script should be run by a normal user account which belongs to the kvm
 # system group and is able to run the ovs-vsctl command via sudo.
@@ -50,11 +50,11 @@ NC='\e[0m' # No Color
 vm="$1"
 image_format="${vm##*.}"
 shift
-yamldesc="$1"
+yamlfile="$1"
 shift
 
 # Are the 2 parameters there ?
-if [[ -z "${vm}" || -z "${yamldesc}"  ]]
+if [[ -z "${vm}" || -z "${yamlfile}"  ]]
 then
 	echo -e "${RED}ERROR : missing parameter.${NC}"
 	echo -e "${GREEN}Usage : $0 [image file] [port list yaml file]${NC}"
@@ -69,7 +69,7 @@ then
 fi
 
 # Is shyaml available ?
-if [[ -z "$(pip3 list --local | grep shyaml)" ]]
+if ! pip3 list --local | grep -q shyaml
 then
 	echo -e "${RED}~> shyaml tool install is not available.${NC}"
 	echo -e "${GREEN}Get it within a Python virtualenv: pip3 install shyaml${NC}"
@@ -78,19 +78,20 @@ then
 fi
 
 # OOB port mgmt0
-tap_mgmt=$(cat ${yamldesc} | shyaml get-value switch.mgmt0)
-spice=$((9900 + ${tap_mgmt}))
-telnet=$((9000 + ${tap_mgmt}))
+tap_mgmt=$(shyaml get-value switch.mgmt0 < "${yamlfile}")
+spice=$((9900 + tap_mgmt))
+telnet=$((9000 + tap_mgmt))
 
 # Is the mgmt0 OOB interface mapped to a free tap interface ?
-if [[ ! -z "$(ps aux | grep =[n]xtap${tap_mgmt}, )" ]]
+if [[ -n "$(pgrep -f "=[n]xtap${tap_mgmt},")" ]]
 then
 	echo -e "${RED}Interface nxtap${tap_mgmt} is already in use.${NC}"
 	exit 1
 fi
 
-instNum=( $(cat ${yamldesc} | shyaml get-value switch.instnum | tr -d '\n-') )
-tapList=( $(cat ${yamldesc} | shyaml get-value switch.ethernet | tr -d '\n-') )
+instNum=$(shyaml get-value switch.instnum < "${yamlfile}")
+ports=$(shyaml get-value switch.ethernet < "${yamlfile}" | tr -d ' -')
+mapfile -t tapList <<< "${ports}"
 tapNum=${#tapList[@]}
 tapNum=$((tapNum - 1))
 ethPorts=""
@@ -98,7 +99,7 @@ ethPorts=""
 # Are the Ethernet interfaces mapped to free tap interfaces ?
 for i in $(seq 0 $tapNum)
 do
-	if [[ ! -z "$(ps aux | grep =[n]xtap${tapList[$i]}, )" ]]
+	if [[ -n "$(pgrep -f "=[n]xtap${tapList[$i]},")" ]]
 	then
 		echo -e "${RED}Interface nxtap${tapList[$i]} is already in use.${NC}"
 		exit 1
@@ -107,18 +108,19 @@ done
 
 # The last 2 bytes of MAC address are generated from mgmt0 port
 # tap interface number
-second_rightmost_byte=$(printf "%02x" $(expr ${tap_mgmt} / 256))
-rightmost_byte=$(printf "%02x" $(expr ${tap_mgmt} % 256))
+second_rightmost_byte=$(printf "%02x" $((tap_mgmt / 256)))
+rightmost_byte=$(printf "%02x" $((tap_mgmt % 256)))
 
 # The OUI part of the Ethernet ports MAC address is random as each nexus VM
 # must use a different one. The rightmost bit of a unicast interface is set to 0
+# shellcheck disable=SC2046
 oui=$(printf "%02x:" $(shuf -i 1-256 -n 3) | sed -e 's/^\(.\)[13579bdf]/\10/')
 
 for i in $(seq 0 $tapNum)
 do
 	addr=$((i + 1))
 	ethPorts+="-netdev tap,ifname=nxtap${tapList[$i]},script=no,downscript=no,id=eth1_1_${addr} \
-		-device e1000,bus=bridge-1,addr=1.${addr},netdev=eth1_1_${addr},mac=${oui}01:$(printf '%02x' ${instNum}):$(printf '%02x' ${addr}),multifunction=on,romfile= " 
+		-device e1000,bus=bridge-1,addr=1.${addr},netdev=eth1_1_${addr},mac=${oui}01:$(printf '%02x' "${instNum}"):$(printf '%02x' ${addr}),multifunction=on,romfile= " 
 done
 
 # RAM size
@@ -132,20 +134,20 @@ fi
 
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
-	cp /usr/share/OVMF/OVMF_VARS_4M.fd ${vm}_OVMF_VARS.fd
+	cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
 fi
 
 echo -e "${RED}---${NC}"
-echo -e "~> Switch name                : ${RED}$(cat ${yamldesc} | shyaml get-value switch.hostname)${NC}"
+echo -e "~> Switch name                : ${RED}$(shyaml get-value switch.hostname < "${yamlfile}")${NC}"
 echo -e "~> RAM size                   : ${RED}${memory}MB${NC}"
 echo -e "~> SPICE VDI port number      : ${GREEN}${spice}${NC}"
 echo -e "~> telnet console port number : ${GREEN}${telnet}${NC}"
 echo -ne "~> mgmt0 tap interface        : ${BLUE}nxtap${tap_mgmt}"
-echo -e ", $(sudo ovs-vsctl list port nxtap${tap_mgmt} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
+echo -e ", $(sudo ovs-vsctl list port "nxtap${tap_mgmt}" | grep vlan_mode | grep -Eo '(access|trunk)') mode${NC}"
 for i in $(seq 0 $tapNum)
 do
 	echo -ne "~> Ethernet1/$((i + 1)) tap interface  : ${BLUE}nxtap${tapList[$i]}"
-	echo -e ", $(sudo ovs-vsctl list port nxtap${tapList[$i]} | grep vlan_mode | egrep -o '(access|trunk)') mode${NC}"
+	echo -e ", $(sudo ovs-vsctl list port "nxtap${tapList[$i]}" | grep vlan_mode | grep -Eo '(access|trunk)') mode${NC}"
 done
 tput sgr0
 
@@ -164,7 +166,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-watchdog-action poweroff \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
-	-drive if=pflash,format=raw,unit=1,file=${vm}_OVMF_VARS.fd \
+	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
 	-k fr \
 	-vga none \
 	-device qxl-vga,vgamem_mb=64 \
@@ -180,12 +182,12 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device pci-bridge,id=bridge-3,chassis_nr=3,bus=dmi-pci-bridge \
 	-device pci-bridge,id=bridge-4,chassis_nr=4,bus=dmi-pci-bridge \
 	-device ahci,id=ahci0 \
-	-drive file=${vm},if=none,id=drive-sata-disk0,format=${image_format},media=disk \
+	-drive file="${vm}",if=none,id=drive-sata-disk0,format="${image_format}",media=disk \
 	-device ide-hd,bus=ahci0.0,drive=drive-sata-disk0,id=drive-sata-disk0,bootindex=1 \
 	-device virtio-serial-pci \
 	-usb \
 	-device usb-tablet,bus=usb-bus.0 \
 	-serial telnet:localhost:${telnet},server,nowait \
-	-netdev tap,ifname=nxtap${tap_mgmt},script=no,downscript=no,id=mgmt0 \
-	-device e1000,bus=bridge-1,addr=1.0,netdev=mgmt0,mac=${oui}ae:${second_rightmost_byte}:${rightmost_byte},multifunction=on,romfile= \
-	${ethPorts} > ${vm}.out 2>&1
+	-netdev tap,ifname="nxtap${tap_mgmt}",script=no,downscript=no,id=mgmt0 \
+	-device e1000,bus=bridge-1,addr=1.0,netdev=mgmt0,mac="${oui}"ae:"${second_rightmost_byte}":"${rightmost_byte}",multifunction=on,romfile= \
+	${ethPorts} > "${vm}.out" 2>&1

@@ -62,29 +62,29 @@ then
 fi
 
 # Is the tap interface free ?
-if [[ ! -z "$(ps aux | grep =[t]ap${tapnum}, )" ]]
+if [[ -n "$(pgrep -f "=[t]ap${tapnum},")" ]]
 then
 	echo -e "${RED}tap${tapnum} is already in use by another process.${NC}"
 	exit 1
 fi
 
-second_rightmost_byte=$(printf "%02x" $(expr ${tapnum} / 256))
-rightmost_byte=$(printf "%02x" $(expr ${tapnum} % 256))
+second_rightmost_byte=$(printf "%02x" $((tapnum / 256)))
+rightmost_byte=$(printf "%02x" $((tapnum % 256)))
 macaddress="b8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
-lladdress="fe80::baad:caff:fefe:$(printf "%x" ${tapnum})"
-vlan_mode="$(sudo ovs-vsctl list port tap${tapnum} | grep vlan_mode | egrep -o '(access|trunk)')"
+lladdress="fe80::baad:caff:fefe:$(printf "%x" "${tapnum}")"
+vlan_mode="$(sudo ovs-vsctl list port "tap${tapnum}" | grep vlan_mode | grep -Eo '(access|trunk)')"
 
 if [[ "$vlan_mode" == "access" ]]
 then
-	svi="vlan$(sudo ovs-vsctl list port tap${tapnum} | grep tag | grep -o -E '[0-9]+')"
+	svi="vlan$(sudo ovs-vsctl list port "tap${tapnum}" | grep tag | grep -Eo '[0-9]+')"
 else
 	svi="dsw-host"
 fi
 
 image_format="${vm##*.}"
 
-spice=$((5900 + ${tapnum}))
-telnet=$((2300 + ${tapnum}))
+spice=$((5900 + tapnum))
+telnet=$((2300 + tapnum))
 
 echo -e "~> Virtual machine filename   : ${RED}${vm}${NC}"
 echo -e "~> RAM size                   : ${RED}${memory}MB${NC}"
@@ -101,12 +101,12 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device intel-iommu,intremap=on \
 	-smp cpus=4 \
 	-daemonize \
-	-name ${vm} \
-	-m ${memory} \
+	-name "${vm}" \
+	-m "${memory}" \
 	-global ICH9-LPC.disable_s3=1 \
 	-global ICH9-LPC.disable_s4=1 \
-	-device virtio-net-pci,mq=on,vectors=6,netdev=net${tapnum},disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
-	-netdev type=tap,queues=2,ifname=tap${tapnum},id=net${tapnum},script=no,downscript=no,vhost=on \
+	-device virtio-net-pci,mq=on,vectors=6,netdev=net"${tapnum}",disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
+	-netdev type=tap,queues=2,ifname=tap"${tapnum}",id=net"${tapnum}",script=no,downscript=no,vhost=on \
 	-serial telnet:localhost:${telnet},server,nowait \
 	-device virtio-balloon \
 	-rtc base=localtime,clock=host \
@@ -114,7 +114,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-watchdog-action poweroff \
 	-boot order=c,menu=on \
 	-object iothread,id=iothread.drive0 \
-	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format=${image_format},media=disk,l2-cache-size=8M,file=${vm} \
+	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
 	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
 	-k fr \
 	-vga none \
@@ -130,5 +130,4 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device ich9-intel-hda,addr=1f.1 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
-	$* > ${vm}.out 2>&1
-
+	"$@" > "${vm}.out" 2>&1

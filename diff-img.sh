@@ -9,6 +9,6 @@ then
 	exit 1
 fi
 
-qemu-img create -b $1 -f $image_format $2 >/dev/null
+qemu-img create -b "$1" -f "${image_format}" "$2" >/dev/null
 
 exit 0
