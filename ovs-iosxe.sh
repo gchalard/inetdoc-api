@@ -63,6 +63,13 @@ then
 	exit 1
 fi
 
+# Is the VM image file already in use ?
+if pgrep -u "${USER}" -l -f "[-name ]${vm}" | grep -v $$
+then
+	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
+	exit 1
+fi
+
 # Is the mgmt0 OOB interface mapped to a free tap interface ?
 if [[  -n "$(pgrep -f "=[t]ap${tap_mgmt},")" ]]
 then
