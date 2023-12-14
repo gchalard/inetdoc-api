@@ -213,4 +213,3 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
 	"$@" > "${vm}.out" 2>&1
-
