@@ -60,6 +60,13 @@ then
 	exit 1
 fi
 
+# Is the VM image file already in use ?
+if pgrep -u "${USER}" -l -f "\-name\ ${vm}" | grep -v $$
+then
+	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
+	exit 1
+fi
+
 # Is the amount of ram sufficient to run the VM ?
 if [[ ${memory} -lt 128 ]]
 then
