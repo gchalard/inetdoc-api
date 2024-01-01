@@ -78,12 +78,7 @@ then
 	exit 1
 fi
 
-# Are the OVMF symlink and file copy there ?
-if [ "$(readlink -- ./OVMF_CODE.fd)" = "/usr/share/OVMF/OVMF_CODE.fd" ]
-then
-	rm ./OVMF_CODE.fd
-fi
-
+# Are the OVMF code symlink and vars file copy there ?
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
 	ln -s /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ./OVMF_CODE.fd
@@ -92,10 +87,10 @@ fi
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
 	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
-	then # This may lead to GRUB reinstall after manual boot fron EFI Shell
-		cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
-	else
-		cp "$HOME/masters/OVMF_VARS" "${vm}_OVMF_VARS.fd"
+	then 
+		cp "$HOME/masters/${vm}_OVMF_VARS.fd" .
+	else # This leads to GRUB reinstall after manual boot from EFI Shell
+		cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd "${vm}_OVMF_VARS.fd"
 	fi
 fi
 
