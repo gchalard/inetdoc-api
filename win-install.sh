@@ -12,7 +12,7 @@
 # parameters used here come from ovml package readme file Source:
 # https://github.com/tianocore/edk2/blob/master/OvmfPkg/README
 #
-# File: ovs-startup.sh
+# File: win-install.sh
 # Author: Philippe Latu
 # Source: https://gitlab.inetdoc.net/labs/startup-scripts
 #
@@ -82,12 +82,7 @@ then
 	exit 1
 fi
 
-# Are the OVMF symlink and file copy there ?
-if [ "$(readlink -- ./OVMF_CODE.fd)" = "/usr/share/OVMF/OVMF_CODE.fd" ]
-then
-	rm ./OVMF_CODE.fd
-fi
-
+# Are the OVMF code symlink and vars file copy there ?
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
 	ln -s /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ./OVMF_CODE.fd
@@ -96,10 +91,10 @@ fi
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
 	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
-	then # This may lead to GRUB reinstall after manual boot fron EFI Shell
-		cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
-	else
-		cp "$HOME/masters/OVMF_VARS" "${vm}_OVMF_VARS.fd"
+	then 
+		cp "$HOME/masters/${vm}_OVMF_VARS.fd" .
+	else # This leads to GRUB reinstall after manual boot from EFI Shell
+		cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd "${vm}_OVMF_VARS.fd"
 	fi
 fi
 
@@ -115,20 +110,20 @@ tpm_dir=${vm}_TPM
 
 if [[ ! -d "${tpm_dir}" ]]
 then
-	mkdir ${tpm_dir}
+	mkdir "${tpm_dir}"
 fi
 
 # Is swtpm already there for this virtual machine ?
-tpm_pid=$(pgrep -u $USER -a swtpm | grep ${tpm_dir}/swtpm-sock | cut -f 1 -d ' ')
-if [[ ! -z "${tpm_pid}" ]]
+tpm_pid=$(pgrep -u "${USER}" -a swtpm | grep "${tpm_dir}/swtpm-sock" | cut -f 1 -d ' ')
+if [[ -n "${tpm_pid}" ]]
 then
-	kill ${tpm_pid}
+	kill "${tpm_pid}"
 fi
 
 nohup swtpm socket \
-	--tpmstate dir=${tpm_dir} \
-	--ctrl type=unixio,path=${tpm_dir}/swtpm-sock \
-	--log file=${tpm_dir}/swtpm.log \
+	--tpmstate dir="${tpm_dir}" \
+	--ctrl type=unixio,path="${tpm_dir}/swtpm-sock" \
+	--log file="${tpm_dir}/swtpm.log" \
 	--tpm2 \
 	--terminate >/dev/null 2>&1 &
 
@@ -200,7 +195,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device ide-cd,bus=ahci0.1,drive=drive-sata0-0-1,id=sata0-0-1 \
 	-drive media=cdrom,if=none,file="${virtio_iso}",id=drive-sata0-0-1 \
 	-drive if=none,id=drive0,format="${image_format}",media=disk,file="${vm}" \
-	-device nvme,drive=drive0,serial=cafe00 \
+	-device nvme,drive=drive0,serial=feedcafe \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
 	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \

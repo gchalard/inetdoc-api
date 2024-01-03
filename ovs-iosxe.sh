@@ -2,12 +2,12 @@
 
 # This script is part of https://inetdoc.net project
 # 
-# It starts a qemu/kvm x86 CSR 1000v router which ports are plugged to Open
-# vSwitch ports through already existing tap interfaces.  It should be run by a
-# normal user account which belongs to the kvm system group and is able to run
-# the ovs-vsctl command via sudo
+# It starts a qemu/kvm x86 CSR1000v/c8000v router which ports are plugged to
+# Open vSwitch ports through already existing tap interfaces.  It should be run
+# by a normal user account which belongs to the kvm system group and is able to
+# run the ovs-vsctl command via sudo
 #
-# This script configures a CSR1000v instance that has three GigabitEthernet
+# This script configures a router instance that has three GigabitEthernet
 # ports: the first is considered the management OOB port and the two other
 # ports are the in-band user traffic ports.
 # 
@@ -90,7 +90,7 @@ then
 	exit 1
 fi
 
-# Are the OVMF symlink and file copy there ?
+# Are the OVMF code symlink and vars file copy there ?
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
 	ln -s /usr/share/OVMF/OVMF_CODE_4M.fd ./OVMF_CODE.fd
@@ -98,7 +98,12 @@ fi
 
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
-	cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
+	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
+	then 
+		cp "$HOME/masters/${vm}_OVMF_VARS.fd" .
+	else # This leads to GRUB reinstall after manual boot from EFI Shell
+		cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd "${vm}_OVMF_VARS.fd"
+	fi
 fi
 
 # Is it possible to set a new Software TPM socket ?
@@ -116,7 +121,7 @@ then
 	mkdir "${tpm_dir}"
 fi
 
-# Is swtpm already there for this virtual machine
+# Is swtpm already there for this virtual machine ?
 tpm_pid=$(pgrep -u "${USER}" -a swtpm | grep "${tpm_dir}/swtpm-sock" | cut -f 1 -d ' ')
 if [[ -n "${tpm_pid}" ]]
 then

@@ -80,12 +80,7 @@ then
 	exit 1
 fi
 
-# Are the OVMF symlink and file copy there ?
-if [ "$(readlink -- ./OVMF_CODE.fd)" = "/usr/share/OVMF/OVMF_CODE.fd" ]
-then
-	rm ./OVMF_CODE.fd
-fi
-
+# Are the OVMF code symlink and vars file copy there ?
 if [[ ! -L "./OVMF_CODE.fd" ]]
 then
 	ln -s /usr/share/OVMF/OVMF_CODE_4M.fd ./OVMF_CODE.fd
@@ -94,10 +89,10 @@ fi
 if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
 then
 	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
-	then # This may lead to GRUB reinstall after manual boot fron EFI Shell
-		cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
-	else
-		cp "$HOME/masters/OVMF_VARS" "${vm}_OVMF_VARS.fd"
+	then 
+		cp "$HOME/masters/${vm}_OVMF_VARS.fd" .
+	else # This leads to GRUB reinstall after manual boot from EFI Shell
+		cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd "${vm}_OVMF_VARS.fd"
 	fi
 fi
 
@@ -116,7 +111,7 @@ then
 	mkdir "${tpm_dir}"
 fi
 
-# Is swtpm already there for this virtual machine
+# Is swtpm already there for this virtual machine ?
 tpm_pid=$(pgrep -u "${USER}" -a swtpm | grep "${tpm_dir}/swtpm-sock" | cut -f 1 -d ' ')
 if [[ -n "${tpm_pid}" ]]
 then
@@ -149,7 +144,7 @@ image_format="${vm##*.}"
 spice=$((5900 + tapnum))
 telnet=$((2300 + tapnum))
 
-# Is TPM socket is ready.
+# Is TPM socket is ready ?
 wait=0
 
 while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ $wait -lt 10 ]]
@@ -219,4 +214,3 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
 	"$@" > "${vm}.out" 2>&1
-
