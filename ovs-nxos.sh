@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script is part of https://inetdoc.net project
-# 
+#
 # It starts a qemu/kvm x86 Nexus 9000v swicth which ports are plugged to Open
 # vSwitch ports through already existing tap interfaces named nxtapXXX.
 #
@@ -9,16 +9,13 @@
 # system group and is able to run the ovs-vsctl command via sudo.
 #
 # Nexus to OvS port mapping is given by a yaml description file which is
-# parsed with the shyaml python tool.
+# parsed with the yq command.
 # Yaml example file:
 #
-#	name: "Switch 0 port mapping"
 #	switch:
 #	  hostname: sw0
 #	  instnum: 1
-#	  # mgmt0 port: nxtap number
 #	  mgmt0: 10
-#	  # Ethernet port: nxtap number
 #	  ethernet:
 #	    - 231
 #	    - 232
@@ -54,61 +51,55 @@ yamlfile="$1"
 shift
 
 # Are the 2 parameters there ?
-if [[ -z "${vm}" || -z "${yamlfile}"  ]]
-then
+if [[ -z ${vm} || -z ${yamlfile} ]]; then
 	echo -e "${RED}ERROR : missing parameter.${NC}"
 	echo -e "${GREEN}Usage : $0 [image file] [port list yaml file]${NC}"
 	exit 1
 fi
 
 # Does the VM image file exist ?
-if [[ ! -f "${vm}" ]]
-then
+if [[ ! -f ${vm} ]]; then
 	echo -e "${RED}ERROR : the ${vm} image file does not exist.${NC}"
 	exit 1
 fi
 
 # Is the VM image file already in use ?
-if pgrep -u "${USER}" -l -f "\-name\ ${vm}" | grep -v $$
-then
+if pgrep -u "${USER}" -l -f "\-name\ ${vm}"; then
 	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
 	exit 1
 fi
 
-# Is shyaml available ?
-if ! pip3 list --local | grep -q shyaml
-then
-	echo -e "${RED}~> shyaml tool install is not available.${NC}"
-	echo -e "${GREEN}Get it within a Python virtualenv: pip3 install shyaml${NC}"
+# Is 'yq' command available ?
+if ! command -v yq &>/dev/null; then
+	echo -e "${RED}~> yq command is not available.${NC}"
+	echo -e "${GREEN}Install it with: sudo apt install yq${NC}"
 	tput sgr0
 	exit 1
 fi
 
 # OOB port mgmt0
-tap_mgmt=$(shyaml get-value switch.mgmt0 < "${yamlfile}")
+tap_mgmt=$(yq .switch.mgmt0 <"${yamlfile}")
 spice=$((9900 + tap_mgmt))
 telnet=$((9000 + tap_mgmt))
 
 # Is the mgmt0 OOB interface mapped to a free tap interface ?
-if [[ -n "$(pgrep -f "=[n]xtap${tap_mgmt},")" ]]
-then
+if [[ -n "$(pgrep -f "=[n]xtap${tap_mgmt}," || true)" ]]; then
 	echo -e "${RED}Interface nxtap${tap_mgmt} is already in use.${NC}"
 	exit 1
 fi
 
-instNum=$(shyaml get-value switch.instnum < "${yamlfile}")
-ports=$(shyaml get-value switch.ethernet < "${yamlfile}" | tr -d ' -')
-mapfile -t tapList <<< "${ports}"
+hostName=$(yq .switch.hostname <"${yamlfile}")
+instNum=$(yq .switch.instnum <"${yamlfile}")
+ports=$(yq .switch.ethernet sw0.yaml | tr -d '[], ' | sed '/^$/d' || true)
+mapfile -t tapList <<<"${ports}"
 tapNum=${#tapList[@]}
 tapNum=$((tapNum - 1))
 ethPorts=""
 
 # Are the Ethernet interfaces mapped to free tap interfaces ?
-for i in $(seq 0 $tapNum)
-do
-	if [[ -n "$(pgrep -f "=[n]xtap${tapList[$i]},")" ]]
-	then
-		echo -e "${RED}Interface nxtap${tapList[$i]} is already in use.${NC}"
+for i in $(seq 0 "${tapNum}"); do
+	if [[ -n "$(pgrep -f "=[n]xtap${tapList[${i}]}," || true)" ]]; then
+		echo -e "${RED}Interface nxtap${tapList[${i}]} is already in use.${NC}"
 		exit 1
 	fi
 done
@@ -121,50 +112,47 @@ rightmost_byte=$(printf "%02x" $((tap_mgmt % 256)))
 # The OUI part of the Ethernet ports MAC address is random as each nexus VM
 # must use a different one. The rightmost bit of a unicast interface is set to 0
 # shellcheck disable=SC2046
-oui=$(printf "%02x:" $(shuf -i 1-256 -n 3) | sed -e 's/^\(.\)[13579bdf]/\10/')
+oui=$(printf "%02x:" $(shuf -i 1-256 -n 3 || true) | sed -e 's/^\(.\)[13579bdf]/\10/')
 
-for i in $(seq 0 $tapNum)
-do
+for i in $(seq 0 "${tapNum}"); do
 	addr=$((i + 1))
-	ethPorts+="-netdev tap,ifname=nxtap${tapList[$i]},script=no,downscript=no,id=eth1_1_${addr} \
-		-device e1000,bus=bridge-1,addr=1.${addr},netdev=eth1_1_${addr},mac=${oui}01:$(printf '%02x' "${instNum}"):$(printf '%02x' ${addr}),multifunction=on,romfile= " 
+	ethPorts+="-netdev tap,ifname=nxtap${tapList[${i}]},script=no,downscript=no,id=eth1_1_${addr} \
+		-device e1000,bus=bridge-1,addr="1.${addr}",netdev="eth1_1_${addr}",mac=${oui}01:$(printf '%02x' "${instNum}"):$(printf '%02x' "${addr}"),multifunction=on,romfile= "
 done
 
 # RAM size
 memory=12288
 
 # Are the OVMF symlink and file copy there ?
-if [[ ! -L "./OVMF_CODE.fd" ]]
-then
+if [[ ! -L "./OVMF_CODE.fd" ]]; then
 	ln -s /usr/share/OVMF/OVMF_CODE_4M.fd ./OVMF_CODE.fd
 fi
 
-if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
-then
+if [[ ! -f "${vm}_OVMF_VARS.fd" ]]; then
 	cp /usr/share/OVMF/OVMF_VARS_4M.fd "${vm}_OVMF_VARS.fd"
 fi
 
 echo -e "${RED}---${NC}"
-echo -e "~> Switch name                : ${RED}$(shyaml get-value switch.hostname < "${yamlfile}")${NC}"
+echo -e "~> Switch name                : ${RED}${hostName}${NC}"
 echo -e "~> RAM size                   : ${RED}${memory}MB${NC}"
 echo -e "~> SPICE VDI port number      : ${GREEN}${spice}${NC}"
 echo -e "~> telnet console port number : ${GREEN}${telnet}${NC}"
 echo -ne "~> mgmt0 tap interface        : ${BLUE}nxtap${tap_mgmt}"
-echo -e ", $(sudo ovs-vsctl list port "nxtap${tap_mgmt}" | grep vlan_mode | grep -Eo '(access|trunk)') mode${NC}"
-for i in $(seq 0 $tapNum)
-do
-	echo -ne "~> Ethernet1/$((i + 1)) tap interface  : ${BLUE}nxtap${tapList[$i]}"
-	echo -e ", $(sudo ovs-vsctl list port "nxtap${tapList[$i]}" | grep vlan_mode | grep -Eo '(access|trunk)') mode${NC}"
+echo -e ", $(sudo ovs-vsctl get port "nxtap${tap_mgmt}" vlan_mode || true) mode${NC}"
+for i in $(seq 0 "${tapNum}"); do
+	echo -ne "~> Ethernet1/"$((i + 1))" tap interface  : ${BLUE}nxtap${tapList[${i}]}"
+	echo -e ", $(sudo ovs-vsctl get port "nxtap${tapList[${i}]}" vlan_mode || true) mode${NC}"
 done
 tput sgr0
 
+# shellcheck disable=SC2086
 ionice -c3 nohup qemu-system-x86_64 \
 	-machine type=q35,smm=on,accel=kvm,kernel-irqchip=split \
 	-cpu max,l3-cache=on \
 	-device intel-iommu,intremap=on \
 	-smp cpus=4 \
 	-daemonize \
-	-m ${memory} \
+	-m "${memory}" \
 	-global ICH9-LPC.disable_s3=1 \
 	-global ICH9-LPC.disable_s4=1 \
 	--device virtio-balloon \
@@ -177,7 +165,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-k fr \
 	-vga none \
 	-device qxl-vga,vgamem_mb=64 \
-	-spice port=${spice},addr=localhost,disable-ticketing=on \
+	-spice port="${spice}",addr=localhost,disable-ticketing=on \
 	-device virtio-serial-pci \
 	-device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 \
 	-chardev spicevmc,id=spicechannel0,name=vdagent \
@@ -194,7 +182,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device virtio-serial-pci \
 	-usb \
 	-device usb-tablet,bus=usb-bus.0 \
-	-serial telnet:localhost:${telnet},server,nowait \
+	-serial telnet:localhost:"${telnet}",server,nowait \
 	-netdev tap,ifname="nxtap${tap_mgmt}",script=no,downscript=no,id=mgmt0 \
 	-device e1000,bus=bridge-1,addr=1.0,netdev=mgmt0,mac="${oui}"ae:"${second_rightmost_byte}":"${rightmost_byte}",multifunction=on,romfile= \
-	${ethPorts} > "${vm}.out" 2>&1
+	${ethPorts} >"${vm}.out" 2>&1

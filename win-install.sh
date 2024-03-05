@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script is part of https://inetdoc.net project
-# 
+#
 # It starts a qemu/kvm x86 virtual machine plugged into an Open VSwitch port
 # through an already existing tap interface.  It should be run by a normal user
 # account which belongs to the kvm system group and is able to run the
@@ -46,61 +46,54 @@ tapnum=$1
 shift
 
 # Are the 3 parameters there ?
-if [[ -z "${vm}" || -z "${memory}" || -z "${tapnum}" ]]
-then
+if [[ -z ${vm} || -z ${memory} || -z ${tapnum} ]]; then
 	echo -e "${RED}ERROR : missing parameter.${NC}"
 	echo -e "${GREEN}Usage : $0 [image file] [RAM size in MB] [tap interface number]${NC}"
 	exit 1
 fi
 
 # Does the VM image file exist ?
-if [[ ! -f "${vm}" ]]
-then
+if [[ ! -f ${vm} ]]; then
 	echo -e "${RED}ERROR : the ${vm} image file does not exist.${NC}"
 	exit 1
 fi
 
 # Is the VM image file already in use ?
-if pgrep -u "${USER}" -l -f "\-name\ ${vm}" | grep -v $$
-then
+user_vm="$(pgrep -u "${USER}" -l -f "\-name\ ${vm}")"
+if [[ -n ${user_vm} ]]; then
 	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
 	exit 1
 fi
 
 # Is the amount of ram sufficient to run the VM ?
-if [[ ${memory} -lt 128 ]]
-then
+if [[ ${memory} -lt 128 ]]; then
 	echo -e "${RED}ERROR : unsifficient RAM size : ${memory}MB${NC}"
 	echo -e "${GREEN}RAM size must be above 128MB.${NC}"
 	exit 1
 fi
 
 # Is the tap interface free ?
-if [[ -n "$(pgrep -f "=[t]ap${tapnum},")" ]]
-then
+user_tap="$(pgrep -f "=[t]ap${tapnum},")"
+if [[ -n ${user_tap} ]]; then
 	echo -e "${RED}tap${tapnum} is already in use by another process.${NC}"
 	exit 1
 fi
 
 # Are the OVMF code symlink and vars file copy there ?
-if [[ ! -L "./OVMF_CODE.fd" ]]
-then
+if [[ ! -L "./OVMF_CODE.fd" ]]; then
 	ln -s /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ./OVMF_CODE.fd
 fi
 
-if [[ ! -f "${vm}_OVMF_VARS.fd" ]]
-then
-	if [[ -f "$HOME/masters/${vm}_OVMF_VARS.fd" ]]
-	then 
-		cp "$HOME/masters/${vm}_OVMF_VARS.fd" .
+if [[ ! -f "${vm}_OVMF_VARS.fd" ]]; then
+	if [[ -f "${HOME}/masters/${vm}_OVMF_VARS.fd" ]]; then
+		cp "${HOME}/masters/${vm}_OVMF_VARS.fd" .
 	else # This leads to GRUB reinstall after manual boot from EFI Shell
 		cp /usr/share/OVMF/OVMF_VARS_4M.ms.fd "${vm}_OVMF_VARS.fd"
 	fi
 fi
 
 # Is it possible to set a new Software TPM socket ?
-if [[ -z "$(which swtpm)" ]]
-then
+if [[ -z "$(command -v swtpm || true)" ]]; then
 	echo -e "${RED}TPM emulator not available${NC}"
 	exit 1
 fi
@@ -108,15 +101,13 @@ fi
 # Does the software TPM directory exists ?
 tpm_dir=${vm}_TPM
 
-if [[ ! -d "${tpm_dir}" ]]
-then
+if [[ ! -d ${tpm_dir} ]]; then
 	mkdir "${tpm_dir}"
 fi
 
 # Is swtpm already there for this virtual machine ?
-tpm_pid=$(pgrep -u "${USER}" -a swtpm | grep "${tpm_dir}/swtpm-sock" | cut -f 1 -d ' ')
-if [[ -n "${tpm_pid}" ]]
-then
+tpm_pid=$(pgrep -fu "${USER}" "type=unixio,path=${tpm_dir}/swtpm-sock")
+if [[ -n ${tpm_pid} ]]; then
 	kill "${tpm_pid}"
 fi
 
@@ -130,13 +121,12 @@ nohup swtpm socket \
 # Is the switch port available ? Which mode ? Which VLAN ?
 second_rightmost_byte=$(printf "%02x" $((tapnum / 256)))
 rightmost_byte=$(printf "%02x" $((tapnum % 256)))
-macaddress="b8:ad:ca:fe:$second_rightmost_byte:$rightmost_byte"
+macaddress="b8:ad:ca:fe:${second_rightmost_byte}:${rightmost_byte}"
 lladdress="fe80::baad:caff:fefe:$(printf "%x" "${tapnum}")"
-vlan_mode="$(sudo ovs-vsctl list port "tap${tapnum}" | grep vlan_mode | grep -Eo '(access|trunk)')"
+vlan_mode="$(sudo ovs-vsctl get port "tap${tapnum}" vlan_mode)"
 
-if [[ "$vlan_mode" == "access" ]]
-then
-	svi="vlan$(sudo ovs-vsctl list port "tap${tapnum}" | grep tag | grep -Eo '[0-9]+')"
+if [[ ${vlan_mode} == "access" ]]; then
+	svi="vlan$(sudo ovs-vsctl get port "tap${tapnum}" tag)"
 else
 	svi="dsw-host"
 fi
@@ -149,15 +139,13 @@ telnet=$((2300 + tapnum))
 # Is TPM socket is ready ?
 wait=0
 
-while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ $wait -lt 10 ]]
-do
+while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ ${wait} -lt 10 ]]; do
 	echo "Waiting a second for TPM socket to be ready."
 	sleep 1s
 	((wait++))
 done
 
-if [[ ${wait} -eq 10 ]]
-then
+if [[ ${wait} -eq 10 ]]; then
 	echo -e "${RED}TPM socket setup failed. Giving up.${NC}"
 	exit 1
 fi
@@ -183,7 +171,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-global ICH9-LPC.disable_s4=1 \
 	-device virtio-net-pci,mq=on,vectors=6,netdev=net"${tapnum}",disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
 	-netdev type=tap,queues=2,ifname=tap"${tapnum}",id=net"${tapnum}",script=no,downscript=no,vhost=on \
-	-serial telnet:localhost:${telnet},server,nowait \
+	-serial telnet:localhost:"${telnet}",server,nowait \
 	-device virtio-balloon \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
@@ -202,7 +190,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-k fr \
 	-vga none \
 	-device qxl-vga,vgamem_mb=64 \
-	-spice port=${spice},addr=localhost,disable-ticketing=on \
+	-spice port="${spice}",addr=localhost,disable-ticketing=on \
 	-device virtio-serial-pci \
 	-device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 \
 	-chardev spicevmc,id=spicechannel0,name=vdagent \
@@ -216,4 +204,4 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device ich9-intel-hda,addr=1f.1 \
 	-audiodev spice,id=snd0 \
 	-device hda-output,audiodev=snd0 \
-	"$@" > "${vm}.out" 2>&1
+	"$@" >"${vm}.out" 2>&1
