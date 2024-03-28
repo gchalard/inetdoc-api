@@ -88,9 +88,9 @@ if [[ -n "$(pgrep -f "=[n]xtap${tap_mgmt}," || true)" ]]; then
 	exit 1
 fi
 
-hostName=$(yq .switch.hostname <"${yamlfile}")
+hostName=$(yq .switch.hostname <"${yamlfile}" | tr -d '"' || true)
 instNum=$(yq .switch.instnum <"${yamlfile}")
-ports=$(yq .switch.ethernet sw0.yaml | tr -d '[], ' | sed '/^$/d' || true)
+ports=$(yq .switch.ethernet <"${yamlfile}" | tr -d '[], ' | sed '/^$/d' || true)
 mapfile -t tapList <<<"${ports}"
 tapNum=${#tapList[@]}
 tapNum=$((tapNum - 1))
@@ -104,20 +104,25 @@ for i in $(seq 0 "${tapNum}"); do
 	fi
 done
 
+# The OUI part of the Ethernet ports MAC address is chosen to build IPv6 Link Local address
+oui=(00 30 24)
+oui_mac="${oui[0]}:${oui[1]}:${oui[2]}"
+
 # The last 2 bytes of MAC address are generated from mgmt0 port
 # tap interface number
 second_rightmost_byte=$(printf "%02x" $((tap_mgmt / 256)))
 rightmost_byte=$(printf "%02x" $((tap_mgmt % 256)))
 
-# The OUI part of the Ethernet ports MAC address is random as each nexus VM
-# must use a different one. The rightmost bit of a unicast interface is set to 0
-# shellcheck disable=SC2046
-oui=$(printf "%02x:" $(shuf -i 1-256 -n 3 || true) | sed -e 's/^\(.\)[13579bdf]/\10/')
+# mgmt addressing
+mgmt_mac="${oui_mac}:ae:${second_rightmost_byte}:${rightmost_byte}"
+ll_id="$(printf '%x' "${tap_mgmt}")"
+lladdress="fe80::$((oui[0] + 2))${oui[1]}:${oui[2]}ff:feae:${ll_id}"
+svi="vlan$(sudo ovs-vsctl get port "tap${tap_mgmt}" tag)"
 
 for i in $(seq 0 "${tapNum}"); do
 	addr=$((i + 1))
 	ethPorts+="-netdev tap,ifname=nxtap${tapList[${i}]},script=no,downscript=no,id=eth1_1_${addr} \
-		-device e1000,bus=bridge-1,addr="1.${addr}",netdev="eth1_1_${addr}",mac=${oui}01:$(printf '%02x' "${instNum}"):$(printf '%02x' "${addr}"),multifunction=on,romfile= "
+		-device e1000,bus=bridge-1,addr="1.${addr}",netdev="eth1_1_${addr}",mac=${oui_mac}:01:$(printf '%02x' "${instNum}"):$(printf '%02x' "${addr}"),multifunction=on,romfile= "
 done
 
 # RAM size
@@ -139,6 +144,7 @@ echo -e "~> SPICE VDI port number      : ${GREEN}${spice}${NC}"
 echo -e "~> telnet console port number : ${GREEN}${telnet}${NC}"
 echo -ne "~> mgmt0 tap interface        : ${BLUE}nxtap${tap_mgmt}"
 echo -e ", $(sudo ovs-vsctl get port "nxtap${tap_mgmt}" vlan_mode || true) mode${NC}"
+echo -e "~> mgmt0 IPv6 LL address      : ${BLUE}${lladdress}%${svi}${NC}"
 for i in $(seq 0 "${tapNum}"); do
 	echo -ne "~> Ethernet1/"$((i + 1))" tap interface  : ${BLUE}nxtap${tapList[${i}]}"
 	echo -e ", $(sudo ovs-vsctl get port "nxtap${tapList[${i}]}" vlan_mode || true) mode${NC}"
@@ -184,5 +190,5 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device usb-tablet,bus=usb-bus.0 \
 	-serial telnet:localhost:"${telnet}",server,nowait \
 	-netdev tap,ifname="nxtap${tap_mgmt}",script=no,downscript=no,id=mgmt0 \
-	-device e1000,bus=bridge-1,addr=1.0,netdev=mgmt0,mac="${oui}"ae:"${second_rightmost_byte}":"${rightmost_byte}",multifunction=on,romfile= \
+	-device e1000,bus=bridge-1,addr=1.0,netdev=mgmt0,mac="${mgmt_mac}",multifunction=on,romfile= \
 	${ethPorts} >"${vm}.out" 2>&1
