@@ -92,7 +92,7 @@ fi
 
 # Is it possible to set a new Software TPM socket ?
 tpm_available=$(command -v swtpm || true)
-if [[ -n ${tpm_available} ]]; then
+if [[ -z "$(command -v swtpm || true)" ]]; then
 	echo -e "${RED}TPM emulator not available${NC}"
 	exit 1
 fi
