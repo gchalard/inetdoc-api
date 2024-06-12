@@ -99,8 +99,8 @@ echo -e "~> IPv6 LL address            : ${BLUE}${lladdress}%${svi}${NC}"
 tput sgr0
 
 ionice -c3 nohup qemu-system-x86_64 \
-	-machine type=q35,accel=kvm:tcg,kernel-irqchip=split \
-	-cpu max,l3-cache=on,+vmx \
+	-machine type=q35,smm=on,accel=kvm:tcg,kernel-irqchip=split \
+	-cpu max,l3-cache=on,+vmx,pcid=on,spec-ctrl=on,stibp=on,ssbd=on,pdpe1gb=on,md-clear=on,mds-no=on,taa-no=on,tsx-ctrl=on  \
 	-device intel-iommu,intremap=on \
 	-smp cpus=4 \
 	-daemonize \
