@@ -154,7 +154,7 @@ tput sgr0
 # shellcheck disable=SC2086
 ionice -c3 nohup qemu-system-x86_64 \
 	-machine type=q35,smm=on,accel=kvm,kernel-irqchip=split \
-	-cpu max,l3-cache=on,+vmx,pcid=on,spec-ctrl=on,stibp=on,ssbd=on,pdpe1gb=on,md-clear=on,mds-no=on,taa-no=on,tsx-ctrl=on  \
+	-cpu max,l3-cache=on,+vmx,pcid=on,spec-ctrl=on,stibp=on,ssbd=on,pdpe1gb=on,md-clear=on,vme=on,f16c=on,rdrand=on,tsc_adjust=on,xsaveopt=on,hypervisor=on,arat=off,abm=on \
 	-device intel-iommu,intremap=on \
 	-smp cpus=4 \
 	-daemonize \
