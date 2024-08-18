@@ -91,7 +91,6 @@ if [[ ! -f "${vm}_OVMF_VARS.fd" ]]; then
 fi
 
 # Is it possible to set a new Software TPM socket ?
-tpm_available=$(command -v swtpm || true)
 if [[ -z "$(command -v swtpm || true)" ]]; then
 	echo -e "${RED}TPM emulator not available${NC}"
 	exit 1
