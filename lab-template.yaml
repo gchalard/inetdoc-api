@@ -1,0 +1,12 @@
+kvm:
+  vms:
+    - name: vmXXX
+      master_image: debian-VERSION-amd64.qcow2
+      force_copy: false
+      memory: <memory in MB>
+      tapnum: <tap interface number>
+    - name: vmYYY
+      master_image: debian-VERSION-amd64.qcow2
+      force_copy: false
+      memory: <memory in MB>
+      tapnum: <tap interface number>

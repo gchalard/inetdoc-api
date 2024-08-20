@@ -22,8 +22,8 @@ lint:
     - bandit@1.7.9
     - black@24.8.0
     - isort@5.13.2
-    - ruff@0.6.0
-    - checkov@3.2.228
+    - ruff@0.6.1
+    - checkov@3.2.231
     - git-diff-check
     - markdownlint@0.41.0
     - prettier@3.3.3

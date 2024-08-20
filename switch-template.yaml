@@ -1,16 +1,16 @@
 ovs:
   switches:
-    - name: dsw-host
+    - name: SWITCH_NAME
       ports:
-        - name: tap210
+        - name: tapXXX
           type: OVSPort
           vlan_mode: access
-          tag: 68
-        - name: tap215
+          tag: VLAN_ID_X
+        - name: tapYYY
           type: OVSPort
           vlan_mode: access
-          tag: 421
-        - name: tap216
+          tag: VLAN_ID_Y
+        - name: tapZZZ
           type: OVSPort
           vlan_mode: trunk
-          trunks: [68, 421]
+          trunks: [VLAN_ID_X, VLAN_ID_Y]
