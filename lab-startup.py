@@ -48,8 +48,10 @@ def check_mandatory_fields(data):
         print(f"{Fore.LIGHTRED_EX}Error: vms section is missing!{Style.RESET_ALL}")
         sys.exit(1)
     for vm in data["kvm"]["vms"]:
-        if "name" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: name field is missing!{Style.RESET_ALL}")
+        if "vm_name" not in vm:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: vm_name field is missing!{Style.RESET_ALL}"
+            )
             sys.exit(1)
         if "memory" not in vm:
             print(f"{Fore.LIGHTRED_EX}Error: memory field is missing!{Style.RESET_ALL}")
@@ -180,30 +182,81 @@ def is_vm_running(vm):
     user_id = os.getuid()
     vm_pid = subprocess.run(
         ["pgrep", "-u", str(user_id), "-l", "-f", f"\-name\ {vm}"],
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )  # nosec
     if vm_pid.returncode != 0:
         return False
     else:
+        pid = vm_pid.stdout.decode("utf-8").split()[0]
+        print(
+            f"{Fore.LIGHTRED_EX}{vm} is already running with PID {pid}!{Style.RESET_ALL}"
+        )
         return True
 
 
 # Check if the tap interface is already in use
 def is_tap_in_use(tapnum):
     tap_pid = subprocess.run(
-        ["pgrep", "-f", f"=[t]ap{tapnum},"], stderr=subprocess.DEVNULL
+        ["pgrep", "-f", f"=[t]ap{tapnum},"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )  # nosec
     if tap_pid.returncode != 0:
         return False
     else:
+        pid = tap_pid.stdout.decode("utf-8").split()[0]
+        print(
+            f"{Fore.LIGHTRED_EX}tap{tapnum} is already in use by PID {pid}!{Style.RESET_ALL}"
+        )
         return True
 
 
 # Build the qemu command
 def build_qemu_cmd(vm):
     script = f"{MASTER_DIR}/scripts/ovs-startup.sh"
-    vm_file = vm["name"] + "." + get_image_format(vm["master_image"])
+    vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
+    dev_cmd = []
+    if "devices" in vm:
+        dev_idx = 0
+        if vm["devices"]["storage"]:
+            for store in vm["devices"]["storage"]:
+                if store["type"] == "disk":
+                    dev_filename = store["dev_name"]
+                    dev_format = get_image_format(dev_filename)
+                    dev_id = store["dev_name"].split(".")[0]
+                    if os.path.exists(store["dev_name"]):
+                        print(
+                            f"{Fore.LIGHTGREEN_EX}{dev_id} already exists!{Style.RESET_ALL}"
+                        )
+                    else:
+                        print(
+                            f"{Fore.LIGHTBLUE_EX}Creating {dev_id}...{Style.RESET_ALL}"
+                        )
+                        subprocess.run(
+                            [
+                                "qemu-img",
+                                "create",
+                                "-f",
+                                dev_format,
+                                "-o",
+                                "lazy_refcounts=on,extended_l2=on",
+                                store["dev_name"],
+                                store["size"],
+                            ]
+                        )  # nosec
+                    dev_cmd = dev_cmd + [
+                        "-device",
+                        f"virtio-scsi-pci,id=scsi{dev_idx},bus=pcie.0",
+                        "-drive",
+                        f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+                        "-device",
+                        f"scsi-hd,bus=scsi0.{dev_idx},channel=0,drive={dev_id}",
+                    ]
+        dev_idx += 1
     cmd = [script, vm_file, str(vm["memory"]), str(vm["tapnum"])]
+    if dev_cmd:
+        cmd = cmd + dev_cmd
     return cmd
 
 
@@ -217,34 +270,23 @@ def main():
     check_mandatory_fields(data)
     # Loop through the virtual machines
     for vm in data["kvm"]["vms"]:
-        image_format = get_image_format(vm["master_image"])
-        if is_vm_running(vm["name"]):
-            print(
-                f"{Fore.LIGHTRED_EX}{vm['name']}.{image_format} is already running!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if is_tap_in_use(vm["tapnum"]):
-            print(
-                f"{Fore.LIGHTRED_EX}tap{vm['tapnum']} is already in use!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        else:
+        if not is_vm_running(vm["vm_name"]) and not is_tap_in_use(vm["tapnum"]):
             # Copy the master image to the VM image
             # If force_copy is True copy the image even if it exists
-            copy_image(vm["master_image"], vm["name"], vm["force_copy"])
+            copy_image(vm["master_image"], vm["vm_name"], vm["force_copy"])
             # UEFI file and symlink check
-            copy_uefi_files(vm["name"])
+            copy_uefi_files(vm["vm_name"])
             qemu_cmd = build_qemu_cmd(vm)
             # print(qemu_cmd)
-            print(f"{Fore.LIGHTBLUE_EX}Starting {vm['name']}...{Style.RESET_ALL}")
+            print(f"{Fore.LIGHTBLUE_EX}Starting {vm['vm_name']}...{Style.RESET_ALL}")
             proc = subprocess.run(qemu_cmd)  # nosec
             if proc.returncode != 0:
                 print(
-                    f"{Fore.LIGHTRED_EX}{vm['name']} failed to start!{Style.RESET_ALL}"
+                    f"{Fore.LIGHTRED_EX}{vm['vm_name']} failed to start!{Style.RESET_ALL}"
                 )
                 sys.exit(1)
             else:
-                print(f"{Fore.LIGHTGREEN_EX}{vm['name']} started!{Style.RESET_ALL}")
+                print(f"{Fore.LIGHTGREEN_EX}{vm['vm_name']} started!{Style.RESET_ALL}")
 
 
 if __name__ == "__main__":

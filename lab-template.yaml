@@ -1,12 +1,18 @@
 kvm:
   vms:
-    - name: vmXXX
-      master_image: debian-VERSION-amd64.qcow2
-      force_copy: false
+    - vm_name: <a virtual machine file name>
+      master_image: debian-VERSION-amd64.qcow2 # master image to be used
+      force_copy: true/false # force copy the master image to the VM image
       memory: <memory in MB>
       tapnum: <tap interface number>
-    - name: vmYYY
-      master_image: debian-VERSION-amd64.qcow2
-      force_copy: false
+      devices:
+        storage:
+          - dev_name: <supplemental disk file name>
+            type: disk
+            size: 32G # size of the disk
+            bus: scsi
+    - name: <another virtual machine file name>
+      master_image: debian-VERSION-amd64.qcow2 # master image to be used
+      force_copy: true/false # force copy the master image to the VM image
       memory: <memory in MB>
       tapnum: <tap interface number>
