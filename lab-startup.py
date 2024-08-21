@@ -245,14 +245,14 @@ def build_qemu_cmd(vm):
                                 store["size"],
                             ],
                             stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL
+                            stderr=subprocess.DEVNULL,
                         )  # nosec
                     if store["bus"] == "virtio":
                         dev_cmd = dev_cmd + [
                             "-drive",
                             f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
                             "-device",
-                            f"virtio-blk-pci,drive={dev_id},scsi=off,config-wce=off"
+                            f"virtio-blk-pci,drive={dev_id},scsi=off,config-wce=off",
                         ]
                     elif store["bus"] == "scsi":
                         dev_addr = dev_idx + 2
@@ -262,14 +262,14 @@ def build_qemu_cmd(vm):
                             "-drive",
                             f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
                             "-device",
-                            f"scsi-hd,bus=scsi0.0,drive={dev_id},channel=0,scsi-id={dev_idx},lun={dev_addr}"
+                            f"scsi-hd,bus=scsi0.0,drive={dev_id},channel=0,scsi-id={dev_idx},lun={dev_addr}",
                         ]
                     elif store["bus"] == "nvme":
                         dev_cmd = dev_cmd + [
                             "-drive",
                             f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
-	                        "-device",
-                            f"nvme,drive={dev_id},serial=feedcafe{dev_idx}"
+                            "-device",
+                            f"nvme,drive={dev_id},serial=feedcafe{dev_idx}",
                         ]
         dev_idx += 1
     cmd = [script, vm_file, str(vm["memory"]), str(vm["tapnum"])]
