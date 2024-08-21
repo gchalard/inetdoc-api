@@ -10,7 +10,7 @@ kvm:
           - dev_name: <supplemental disk file name>
             type: disk
             size: 32G # size of the disk
-            bus: scsi
+            bus: <scsi / virtio / nvme> # bus type
     - name: <another virtual machine file name>
       master_image: debian-VERSION-amd64.qcow2 # master image to be used
       force_copy: true/false # force copy the master image to the VM image

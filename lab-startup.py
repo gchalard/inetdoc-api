@@ -243,16 +243,34 @@ def build_qemu_cmd(vm):
                                 "lazy_refcounts=on,extended_l2=on",
                                 store["dev_name"],
                                 store["size"],
-                            ]
+                            ],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
                         )  # nosec
-                    dev_cmd = dev_cmd + [
-                        "-device",
-                        f"virtio-scsi-pci,id=scsi{dev_idx},bus=pcie.0",
-                        "-drive",
-                        f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
-                        "-device",
-                        f"scsi-hd,bus=scsi0.{dev_idx},channel=0,drive={dev_id}",
-                    ]
+                    if store["bus"] == "virtio":
+                        dev_cmd = dev_cmd + [
+                            "-drive",
+                            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+                            "-device",
+                            f"virtio-blk-pci,drive={dev_id},scsi=off,config-wce=off"
+                        ]
+                    elif store["bus"] == "scsi":
+                        dev_addr = dev_idx + 2
+                        dev_cmd = dev_cmd + [
+                            "-device",
+                            f"virtio-scsi-pci,id=scsi{dev_idx},bus=pcie.0",
+                            "-drive",
+                            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+                            "-device",
+                            f"scsi-hd,bus=scsi0.0,drive={dev_id},channel=0,scsi-id={dev_idx},lun={dev_addr}"
+                        ]
+                    elif store["bus"] == "nvme":
+                        dev_cmd = dev_cmd + [
+                            "-drive",
+                            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+	                        "-device",
+                            f"nvme,drive={dev_id},serial=feedcafe{dev_idx}"
+                        ]
         dev_idx += 1
     cmd = [script, vm_file, str(vm["memory"]), str(vm["tapnum"])]
     if dev_cmd:
@@ -277,7 +295,6 @@ def main():
             # UEFI file and symlink check
             copy_uefi_files(vm["vm_name"])
             qemu_cmd = build_qemu_cmd(vm)
-            # print(qemu_cmd)
             print(f"{Fore.LIGHTBLUE_EX}Starting {vm['vm_name']}...{Style.RESET_ALL}")
             proc = subprocess.run(qemu_cmd)  # nosec
             if proc.returncode != 0:
