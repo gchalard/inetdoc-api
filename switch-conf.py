@@ -135,11 +135,11 @@ def configure_switch_ports(switch, switch_config):
                     ]
                 )  # nosec
                 print(
-                    f"{Fore.BLUE}>> Port {port['name']} vlan_mode set to {port['vlan_mode']}{Style.RESET_ALL}"
+                    f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} vlan_mode set to {port['vlan_mode']}{Style.RESET_ALL}"
                 )  # noqa: E501
             else:
                 print(
-                    f"{Fore.GREEN}>> Port {port['name']} vlan_mode is already set to {port['vlan_mode']}{Style.RESET_ALL}"
+                    f"{Fore.LIGHTGREEN_EX}>> Port {port['name']} vlan_mode is already set to {port['vlan_mode']}{Style.RESET_ALL}"
                 )
             # Set the port tag if the vlan_mode is access
             if port["vlan_mode"] == "access":
@@ -156,7 +156,7 @@ def configure_switch_ports(switch, switch_config):
                         ]
                     )  # nosec
                     print(
-                        f"{Fore.BLUE}>> Port {port['name']} tag set to {port['tag']}{Style.RESET_ALL}"
+                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} tag set to {port['tag']}{Style.RESET_ALL}"
                     )
                 else:
                     print(
@@ -177,7 +177,7 @@ def configure_switch_ports(switch, switch_config):
                         ]
                     )  # nosec
                     print(
-                        f"{Fore.BLUE}>> Port {port['name']} trunks set to {port['trunks']}{Style.RESET_ALL}"
+                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} trunks set to {port['trunks']}{Style.RESET_ALL}"
                     )
                 else:
                     print(
