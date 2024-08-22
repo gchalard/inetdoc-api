@@ -7,11 +7,11 @@ kvm:
       tapnum: <tap interface number>
       devices:
         storage:
-          - dev_name: <supplemental disk file name>
+          - dev_name: <supplemental disk file name with its extension to set format>
             type: disk
             size: 32G # size of the disk
             bus: <scsi / virtio / nvme> # bus type
-    - name: <another virtual machine file name>
+    - vm_name: <another virtual machine file name>
       master_image: debian-VERSION-amd64.qcow2 # master image to be used
       force_copy: true/false # force copy the master image to the VM image
       memory: <memory in MB>
