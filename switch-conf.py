@@ -160,7 +160,7 @@ def configure_switch_ports(switch, switch_config):
                     )
                 else:
                     print(
-                        f"{Fore.GREEN}>> Port {port['name']} tag is already set to {port['tag']}{Style.RESET_ALL}"
+                        f"{Fore.LIGHTGREEN_EX}>> Port {port['name']} tag is already set to {port['tag']}{Style.RESET_ALL}"
                     )
             # Set the port trunks if the vlan_mode is trunk
             if port["vlan_mode"] == "trunk":
@@ -181,7 +181,7 @@ def configure_switch_ports(switch, switch_config):
                     )
                 else:
                     print(
-                        f"{Fore.GREEN}>> Port {port['name']} trunks is already set to {port['trunks']}{Style.RESET_ALL}"
+                        f"{Fore.LIGHTGREEN_EX}>> Port {port['name']} trunks is already set to {port['trunks']}{Style.RESET_ALL}"
                     )
         else:
             print(
