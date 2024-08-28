@@ -181,7 +181,7 @@ def copy_uefi_files(vm):
 def is_vm_running(vm):
     user_id = os.getuid()
     vm_pid = subprocess.run(
-        ["pgrep", "-u", str(user_id), "-l", "-f", f"\-name\ {vm}"],
+        ["pgrep", "-u", str(user_id), "-l", "-f", f"-name {vm}"],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )  # nosec
