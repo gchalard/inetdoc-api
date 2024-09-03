@@ -140,22 +140,28 @@ def build_ipv6_link_local(tapnum):
 
 # Copy the master image to the VM image if force_copy is True
 def copy_image(master_image, vm_image, force):
-    vm_image = vm_image + "." + get_image_format(master_image)
-    if os.path.exists(vm_image) and not force:
-        print(f"{Fore.LIGHTGREEN_EX}{vm_image} already exists!{Style.RESET_ALL}")
+    dst_file = vm_image + "." + get_image_format(master_image)
+    if os.path.exists(dst_file) and not force:
+        print(f"{Fore.LIGHTGREEN_EX}{dst_file} already exists!{Style.RESET_ALL}")
     else:
-        master_image = f"{MASTER_DIR}/{master_image}"
-        # Check if the master image exists
-        if not os.path.exists(master_image):
+        src_file = f"{MASTER_DIR}/{master_image}"
+        # Check if the master image file exists
+        if not os.path.exists(src_file):
             print(
-                f"{Fore.LIGHTRED_EX}Error: {master_image} not found!{Style.RESET_ALL}"
+                f"{Fore.LIGHTRED_EX}Error: {src_file} not found!{Style.RESET_ALL}"
             )
             sys.exit(1)
         else:
             print(
-                f"{Fore.LIGHTBLUE_EX}Copying {master_image} to {vm_image}...{Style.RESET_ALL}"
+                f"{Fore.LIGHTBLUE_EX}Copying {src_file} to {dst_file}...{Style.RESET_ALL}",
+                end=""
             )
-            subprocess.run(["cp", master_image, vm_image])  # nosec
+            cp_result = subprocess.run(["cp", src_file, dst_file])  # nosec
+            if cp_result.returncode == 0:
+                print(f"{Fore.LIGHTBLUE_EX}done{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.LIGHTRED_EX}failed!{Style.RESET_ALL}")
+                sys.exit(1)
 
 
 # Copy UEFI files to the VM directory
