@@ -52,7 +52,7 @@ if [[ ! -f ${vm} ]]; then
 fi
 
 # Is the VM image file already in use ?
-user_vm="$(pgrep -u "${USER}" -l -f "\-name\ ${vm}" || true)"
+user_vm="$(pgrep -u "${USER}" -l -f "\-name\ ${vm}")"
 if [[ -n ${user_vm} ]]; then
 	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
 	exit 1
@@ -72,6 +72,7 @@ if [[ -n ${user_tap} ]]; then
 	exit 1
 fi
 
+# Is the switch port available ? Which mode ? Which VLAN ?
 second_rightmost_byte=$(printf "%02x" $((tapnum / 256)))
 rightmost_byte=$(printf "%02x" $((tapnum % 256)))
 macaddress="b8:ad:ca:fe:${second_rightmost_byte}:${rightmost_byte}"
@@ -116,12 +117,11 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device i6300esb \
 	-watchdog-action poweroff \
 	-boot order=c,menu=on \
-	-object iothread,id=iothread.drive0 \
-	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
-	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
+	-drive if=none,id=drive0,format="${image_format}",media=disk,file="${vm}" \
+	-device nvme,drive=drive0,serial=feedcafe \
 	-k fr \
 	-vga none \
-	-device qxl-vga,vgamem_mb=64 \
+	-device qxl-vga,vgamem_mb=64,vram64_size_mb=64,vram_size_mb=64 \
 	-spice port="${spice}",addr=localhost,disable-ticketing=on \
 	-device virtio-serial-pci \
 	-device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 \

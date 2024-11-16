@@ -180,7 +180,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
 	-k fr \
 	-vga none \
-	-device qxl-vga,vgamem_mb=64 \
+	-device qxl-vga,vgamem_mb=64,vram64_size_mb=64,vram_size_mb=64 \
 	-spice port="${spice}",addr=localhost,disable-ticketing=on \
 	-device virtio-serial-pci \
 	-device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 \
