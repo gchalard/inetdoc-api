@@ -195,9 +195,8 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
 	-watchdog-action poweroff \
-	-object iothread,id=iothread.drive0 \
 	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
-	-device virtio-blk,num-queues=1,drive=drive0,scsi=off,config-wce=off,iothread=iothread.drive0 \
+	-device virtio-blk,drive=drive0 \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
 	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
