@@ -2,8 +2,8 @@
 
 # This script is part of https://inetdoc.net project
 #
-# It starts a qemu/kvm x86 CSR1000v/c8000v router which ports are plugged to
-# Open vSwitch ports through already existing tap interfaces.  It should be run
+# It starts a qemu/kvm x86 c8000v router which ports are plugged to
+# Open vSwitch ports through already existing tap interfaces. It should be run
 # by a normal user account which belongs to the kvm system group and is able to
 # run the ovs-vsctl command via sudo
 #
@@ -62,7 +62,7 @@ if [[ ! -f ${vm} ]]; then
 fi
 
 # Is the VM image file already in use ?
-user_vm="$(pgrep -u "${USER}" -l -f "\-name\ ${vm}" || true)"
+user_vm="$(pgrep -u "${USER}" -l -f "\-name\ ${vm}")"
 if [[ -n ${user_vm} ]]; then
 	echo -e "${RED}ERROR : the ${vm} image file is in use.${NC}"
 	exit 1
@@ -117,12 +117,41 @@ if [[ -n ${tpm_pid} ]]; then
 	kill "${tpm_pid}"
 fi
 
+# Run the software TPM emulator
 nohup swtpm socket \
 	--tpmstate dir="${tpm_dir}" \
 	--ctrl type=unixio,path="${tpm_dir}/swtpm-sock" \
 	--log file="${tpm_dir}/swtpm.log" \
 	--tpm2 \
 	--terminate >/dev/null 2>&1 &
+
+# Is TPM socket is ready ?
+wait=0
+
+while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ ${wait} -lt 10 ]]; do
+	echo "Waiting a second for TPM socket to be ready."
+	sleep 1s
+	((wait++))
+done
+
+if [[ ${wait} -eq 10 ]]; then
+	echo -e "${RED}TPM socket setup failed. Giving up.${NC}"
+	exit 1
+fi
+
+# Does the SPICE password directory exist?
+if [[ ! -d "${HOME}/.spice" ]]; then
+	mkdir "${HOME}/.spice"
+fi
+
+# Generate SPICE password
+SPICE_SEC="${HOME}/.spice/spice.passwd"
+if [[ ! -f ${SPICE_SEC} ]]; then
+	spice_password=$(openssl rand -base64 8)
+	echo -n "${spice_password}" >"${SPICE_SEC}"
+	chmod 600 "${SPICE_SEC}"
+	echo -e "${BLUE}Your new SPICE password stored in ${SPICE_SEC}${NC}"
+fi
 
 # OOB port mgmt0
 spice=$((7900 + tap_mgmt))
@@ -154,20 +183,6 @@ macaddressG3="f8:ad:ca:fe:${second_rightmost_byte}:${rightmost_byte}"
 # RAM size
 memory=16384
 
-# Is TPM socket is ready.
-wait=0
-
-while [[ ! -S ${tpm_dir}/swtpm-sock ]] && [[ ${wait} -lt 10 ]]; do
-	echo "Waiting a second for TPM socket to be ready."
-	sleep 1s
-	((wait++))
-done
-
-if [[ ${wait} -eq 10 ]]; then
-	echo -e "${RED}TPM socket setup failed. Giving up.${NC}"
-	exit 1
-fi
-
 echo -e "${RED}---${NC}"
 echo -e "~> Router name                : ${RED}${vm}${NC}"
 echo -e "~> RAM size                   : ${RED}${memory}MB${NC}"
@@ -185,7 +200,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-machine type=q35,smm=on,accel=kvm:tcg,kernel-irqchip=split \
 	-cpu max,l3-cache=on,+vmx,pcid=on,spec-ctrl=on,stibp=on,ssbd=on,pdpe1gb=on,md-clear=on,vme=on,f16c=on,rdrand=on,tsc_adjust=on,xsaveopt=on,hypervisor=on,arat=off,abm=on \
 	-device intel-iommu,intremap=on \
-	-smp cpus=4 \
+	-smp sockets=1,cores=4,threads=1 \
 	-daemonize \
 	-name "${vm}" \
 	-m "${memory}" \
@@ -195,22 +210,25 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
 	-watchdog-action poweroff \
-	-drive if=none,id=drive0,aio=threads,cache.direct=on,discard=unmap,format="${image_format}",media=disk,l2-cache-size=8M,file="${vm}" \
-	-device virtio-blk,drive=drive0 \
+	-boot order=c,menu=on \
+	-drive if=none,id=drive0,format="${image_format}",media=disk,file="${vm}" \
+	-device nvme,drive=drive0,serial=feedcafe \
 	-global driver=cfi.pflash01,property=secure,value=on \
 	-drive if=pflash,format=raw,unit=0,file=OVMF_CODE.fd,readonly=on \
 	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
 	-k fr \
 	-vga none \
-	-spice port="${spice}",addr=localhost,disable-ticketing=on \
+	-device qxl-vga,vgamem_mb=64,vram64_size_mb=64,vram_size_mb=64 \
+	-object secret,id=spiceSec0,file="${HOME}/.spice/spice.passwd" \
+	-spice "port=${spice},addr=localhost,password-secret=spiceSec0" \
 	-device virtio-serial-pci \
 	-device virtserialport,chardev=spicechannel0,name=com.redhat.spice.0 \
 	-chardev spicevmc,id=spicechannel0,name=vdagent \
 	-object rng-random,filename=/dev/urandom,id=rng0 \
+	-device virtio-rng-pci,rng=rng0 \
 	-chardev socket,id=chrtpm,path="${tpm_dir}/swtpm-sock" \
 	-tpmdev emulator,id=tpm0,chardev=chrtpm \
 	-device tpm-tis,tpmdev=tpm0 \
-	-device virtio-rng-pci,rng=rng0 \
 	-usb \
 	-device usb-tablet,bus=usb-bus.0 \
 	-serial telnet:localhost:"${telnet}",server,nowait \

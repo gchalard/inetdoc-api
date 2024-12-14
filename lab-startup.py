@@ -147,14 +147,12 @@ def copy_image(master_image, vm_image, force):
         src_file = f"{MASTER_DIR}/{master_image}"
         # Check if the master image file exists
         if not os.path.exists(src_file):
-            print(
-                f"{Fore.LIGHTRED_EX}Error: {src_file} not found!{Style.RESET_ALL}"
-            )
+            print(f"{Fore.LIGHTRED_EX}Error: {src_file} not found!{Style.RESET_ALL}")
             sys.exit(1)
         else:
             print(
                 f"{Fore.LIGHTBLUE_EX}Copying {src_file} to {dst_file}...{Style.RESET_ALL}",
-                end=""
+                end="",
             )
             cp_result = subprocess.run(["cp", src_file, dst_file])  # nosec
             if cp_result.returncode == 0:

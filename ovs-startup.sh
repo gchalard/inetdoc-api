@@ -2,7 +2,7 @@
 
 # This script is part of https://inetdoc.net project
 #
-# It starts a qemu/kvm x86 virtual machine plugged into an Open VSwitch port
+# It starts a qemu/kvm x86 virtual machine plugged into an Open vSwitch port
 # through an already existing tap interface.  It should be run by a normal user
 # account which belongs to the kvm system group and is able to run the
 # ovs-vsctl command via sudo
