@@ -54,28 +54,28 @@ the network topology.
 - `switch-conf.py` sets the configuration of the hypervisor switch ports
   declared in a YAML file of the form:
 
-      ```yaml
-      ovs:
-        switches:
-          - name: SWITCH_NAME
-            ports:
-              - name: tapXXX
-                type: OVSPort
-                vlan_mode: access
-                tag: VLAN_ID_X
-              - name: tapYYY
-                type: OVSPort
-                vlan_mode: access
-                tag: VLAN_ID_Y
-              - name: tapZZZ
-                type: OVSPort
-                vlan_mode: trunk
-                trunks: [VLAN_ID_X, VLAN_ID_Y]
-      ```
+  ```yaml
+  ovs:
+    switches:
+      - name: SWITCH_NAME
+        ports:
+          - name: tapXXX
+            type: OVSPort
+            vlan_mode: access
+            tag: VLAN_ID_X
+          - name: tapYYY
+            type: OVSPort
+            vlan_mode: access
+            tag: VLAN_ID_Y
+          - name: tapZZZ
+            type: OVSPort
+            vlan_mode: trunk
+            trunks: [VLAN_ID_X, VLAN_ID_Y]
+  ```
 
-      Invoked as `python3 switch-conf.py switch.yaml`
+  Invoked as `python3 switch-conf.py switch.yaml`
 
-      See `switch-template.yaml` for an example.
+  See `switch-template.yaml` for an example.
 
 ## `ovs-startup.sh` script main characteristics
 
