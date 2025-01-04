@@ -1,7 +1,17 @@
-# startup-scripts
+# Virtual machines startup scripts
 
 This repository contains all the scripts used to start virtual machines of all
-types on our type 2 hypervisors.
+types on our type-2 hypervisors.
+
+In this context, a type 2 hypervisor is a KVM hypervisor running on a bare metal
+server with Debian GNU/Linux. The hypervisor is configured with Open vSwitch
+(OVS) to connect and manage both the virtual and physical networks.
+
+A large number of tap interfaces are provided on the hypervisor **dsw-host** switch
+for the students to run their virtual machines. These tap interfaces are
+configured in access mode by default and belong to a VLAN with automatic IPv6
+and IPv4 addressing. As the students progress, they will be able to configure
+the swicth port to trunk mode and manage VLANs themselves.
 
 ## Bash Scripts
 
@@ -110,3 +120,48 @@ QEMU virtual machine scripts. Here are the main ones:
 The design idea is to make the `ovs-startup.sh` script a flexible tool for
 virtual machines management with tight integration with Open vSwitch and advanced
 security features.
+
+## Setting up the user environment
+
+Here are the commands to set up the environment on the hypervisor on the first
+connection:  
+
+```bash
+ln -s /var/cache/kvm/masters ~
+mkdir ~/vm
+ln -s ~/masters/scripts ~/vm/
+```
+
+Once this basic setup is done for beginners, users can customize their own
+directories.
+
+## Setting up the hypervisor environment
+
+The hypervisoir main directory is `/var/cache/kvm/masters`. It contains both the
+virtual machine master images and the scripts to start the virtual machines.
+
+Here is a sample list of the `masters` directory:
+
+```bash
+ls -1 /var/cache/kvm/masters/*.qcow2
+/var/cache/kvm/masters/c8000v-universalk9.17.15.01a.qcow2
+/var/cache/kvm/masters/debian-stable-amd64.qcow2
+/var/cache/kvm/masters/debian-testing-amd64.qcow2
+/var/cache/kvm/masters/nexus9300v64.10.4.2.F.qcow2
+/var/cache/kvm/masters/nexus9500v64.10.4.2.F.qcow2
+/var/cache/kvm/masters/ubuntu-24.04-desktop.qcow2
+/var/cache/kvm/masters/ubuntu-24.04-devnet.qcow2
+/var/cache/kvm/masters/ubuntu-24.04-server.qcow2
+/var/cache/kvm/masters/win11-mac.qcow2
+/var/cache/kvm/masters/win11.qcow2
+/var/cache/kvm/masters/win22-server.qcow2
+```
+
+## Installation
+
+Stated that `git` is installed on the hypervisor, the following command will
+clone the repository in the `/var/cache/kvm/masters` directory:
+
+```bash
+sudo bash -c "mkdir -p /var/cache/kvm/masters && git clone https://gitlab.inetdoc.net/labs/startup-scripts /var/cache/kvm/masters"
+```
