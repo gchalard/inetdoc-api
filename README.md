@@ -86,8 +86,8 @@ the network topology.
 
   Invoked as `python3 lab-startup.py lab.yaml`
 
-  See [linux-lab-template.yaml](scripts/linux-lab-template.yaml) or
-  [iosxe-lab-template.yaml](scripts/iosxe-lab-template.yaml) for examples.
+  See [linux-lab-template.yaml](linux-lab-template.yaml) or
+  [iosxe-lab-template.yaml](iosxe-lab-template.yaml) for examples.
 
 - `switch-conf.py` sets the configuration of the hypervisor switch ports
   declared in a YAML file of the form:
@@ -113,7 +113,7 @@ the network topology.
 
   Invoked as `python3 switch-conf.py switch.yaml`
 
-  See `switch-template.yaml` for an example.
+  See [switch-template.yaml](switch-template.yaml) for an example.
 
 ## `ovs-startup.sh` script main characteristics
 
