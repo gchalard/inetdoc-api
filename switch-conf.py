@@ -28,8 +28,15 @@ def read_yaml(file):
         sys.exit(1)
 
     # open the yaml file
-    with open(file) as f:
-        data = yaml.safe_load(f)
+    with open(file, "r") as f:
+        try:
+            data = yaml.safe_load(f)
+        except yaml.YAMLError as exc:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: {file} is not a valid YAML file!{Style.RESET_ALL}"
+            )
+            print(exc)
+            sys.exit(1)
     return data
 
 
