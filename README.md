@@ -18,10 +18,19 @@ the swicth port to trunk mode and manage VLANs themselves.
 These scripts are the low level scripts. They can be used as a reference to
 start a single virtual machine.
 
-- `ovs-startup.sh` starts all linux virtual machines
+- `ovs-startup.sh` starts all linux virtual machines. It includes:
+  - Configuration of TAP interfaces
+  - Generation of SPICE passwords
+  - Support for UEFI boot with OVMF
+  - Advanced QEMU options for performance and security
+  - Management of different GPU drivers
+    - qxl with 64MB of video memory for Linux virtual machines
+    - qxl-vga with 256MB of video memory for Windows virtual machines
+  - Management of TPM support with swtpm
 
 - `ovs-iosxe.sh` starts Cisco virtual routers such as Cloud Services Router
-  1000V or Cisco Catalyst 8000V Edge Software
+  1000V or Cisco Catalyst 8000V Edge Software. It includes:
+  - Configuration of 3 TAP interfaces like the physical ISR4321 routers
 
 - `ovs-nxos.sh` starts Cisco Nexus 9000v Switches such as 9300 or 9500
 
@@ -35,21 +44,45 @@ from the virtual machine declaration. At the beginning, students will only use
 virtual machines with automatic networking. Then, they will be able to declare
 the network topology.
 
-- `lab-startup.py` starts virtual machines declared in a YAML file of the form:
+- `lab-startup.py` manages the startup of multiple virtual machines defined in a YAML file. It includes:
+  - Verification of the uniqueness of TAP interface numbers
+  - Creation of storage images if they do not exist for Linux or Windows OS
+  - Building and executing QEMU commands based on the configuration
+  - Handling different operating systems (`linux`, `windows`, `iosxe`)
 
+  Example of a Linux or Windows YAML file:
   ```yaml
   kvm:
     vms:
       - vm_name: # a virtual machine file name
+        os: # [linux, windows] operating system
         master_image: # debian-VERSION-amd64.qcow2 master image file to be used
         force_copy: # [true,false] force copy the master image to the VM image
         memory: # memory in MB
         tapnum: # tap interface number
+        devices:
+          storage:
+            - dev_name: # supplemental disk file name with its extension to set format
+              type: disk
+              size: 32G # size of the disk
+              bus: # [scsi, virtio, nvme] bus type
+  ```
+
+  Example of an IOSXE YAML file:
+  ```yaml
+  kvm:
+    vms:
+      - vm_name: # a virtual router file name
+        os: iosxe
+        master_image: # c8000v-VERSION.qcow2 master image file to be used
+        force_copy: # [true,false] force copy the master image to the VM image
+        tapnumlist: [10, 11, 12]
   ```
 
   Invoked as `python3 lab-startup.py lab.yaml`
 
-  See `lab-template.yaml` for an example.
+  See [linux-lab-template.yaml](scripts/linux-lab-template.yaml) or
+  [iosxe-lab-template.yaml](scripts/iosxe-lab-template.yaml) for examples.
 
 - `switch-conf.py` sets the configuration of the hypervisor switch ports
   declared in a YAML file of the form:
