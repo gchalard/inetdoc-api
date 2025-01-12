@@ -35,11 +35,13 @@ def read_yaml(file):
         sys.exit(1)
 
     # open the yaml file
-    with open(file, 'r') as f:
+    with open(file, "r") as f:
         try:
             data = yaml.safe_load(f)
         except yaml.YAMLError as exc:
-            print(f"{Fore.LIGHTRED_EX}Error: {file} is not a valid YAML file!{Style.RESET_ALL}")
+            print(
+                f"{Fore.LIGHTRED_EX}Error: {file} is not a valid YAML file!{Style.RESET_ALL}"
+            )
             print(exc)
             sys.exit(1)
     return data
@@ -145,7 +147,7 @@ def build_svi_name(tapnum):
             ["sudo", "ovs-vsctl", "get", "port", tap, "vlan_mode"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            check=True
+            check=True,
         )  # nosec
         .stdout.decode("utf-8")
         .strip()
@@ -155,7 +157,7 @@ def build_svi_name(tapnum):
             ["sudo", "ovs-vsctl", "get", "port", tap, "tag"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            check=True
+            check=True,
         )  # nosec
         .stdout.decode("utf-8")
         .strip()
@@ -165,7 +167,7 @@ def build_svi_name(tapnum):
             ["sudo", "ovs-vsctl", "port-to-br", tap],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            check=True
+            check=True,
         )  # nosec
         .stdout.decode("utf-8")
         .strip()
@@ -309,7 +311,7 @@ def create_image_if_not_exists(store):
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            check=True
+            check=True,
         )  # nosec
 
 
