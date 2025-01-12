@@ -1,0 +1,12 @@
+kvm:
+  vms:
+    - vm_name: <a virtual machine file name>
+      os: iosxe
+      master_image: c8000v-VERSION.qcow2 # master image to be used
+      force_copy: true/false # force copy the master image to the VM image
+      tapnumlist: [<G1 interface tap number>, <G2 interface tap number>, <G3 interface tap number>]
+    - vm_name: <another virtual machine file name>
+      os: iosxe
+      master_image: c8000v-VERSION.qcow2 # master image to be used
+      force_copy: true/false # force copy the master image to the VM image
+      tapnumlist: [<G1 tap interface number>, <G2 tap interface number>, <G3 tap interface number>]

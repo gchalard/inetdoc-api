@@ -40,11 +40,13 @@ memory=$1
 shift
 tapnum=$1
 shift
+os_type=${1:-linux}
+shift
 
-# Are the 3 parameters there ?
+# Are the 4 parameters there ?
 if [[ -z ${vm} || -z ${memory} || -z ${tapnum} ]]; then
 	echo -e "${RED}ERROR : missing parameter.${NC}"
-	echo -e "${GREEN}Usage : $0 [image file] [RAM size in MB] [tap interface number]${NC}"
+	echo -e "${GREEN}Usage : $0 [image file] [RAM size in MB] [tap interface number] [os_type (linux/windows)]${NC}"
 	exit 1
 fi
 
@@ -72,6 +74,17 @@ fi
 user_tap="$(pgrep -f "=[t]ap${tapnum},")"
 if [[ -n ${user_tap} ]]; then
 	echo -e "${RED}tap${tapnum} is already in use by another process.${NC}"
+	exit 1
+fi
+
+# Is the GPU set according to the OS type ?
+echo "OS type : ${os_type}"
+if [[ ${os_type} == "linux" ]]; then
+	gpu_driver="qxl,vgamem_mb=64,vram64_size_mb=64,vram_size_mb=64"
+elif [[ ${os_type} == "windows" ]]; then
+	gpu_driver="qxl-vga,vgamem_mb=256,vram64_size_mb=256,vram_size_mb=256"
+else
+	echo -e "${RED}ERROR : Invalid OS type. Use 'linux' or 'windows'.${NC}"
 	exit 1
 fi
 
@@ -183,7 +196,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device virtio-net-pci,mq=on,vectors=6,netdev=net"${tapnum}",disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
 	-netdev type=tap,queues=2,ifname=tap"${tapnum}",id=net"${tapnum}",script=no,downscript=no,vhost=on \
 	-serial telnet:localhost:"${telnet}",server,nowait \
-	-device virtio-balloon \
+	-device virtio-balloon-pci \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
 	-watchdog-action poweroff \
@@ -195,7 +208,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-drive if=pflash,format=raw,unit=1,file="${vm}_OVMF_VARS.fd" \
 	-k fr \
 	-vga none \
-	-device qxl-vga,vgamem_mb=64,vram64_size_mb=64,vram_size_mb=64 \
+	-device "${gpu_driver}" \
 	-object secret,id=spiceSec0,file="${HOME}/.spice/spice.passwd" \
 	-spice "port=${spice},addr=localhost,password-secret=spiceSec0" \
 	-device virtio-serial-pci \

@@ -53,27 +53,59 @@ def check_mandatory_fields(data):
                 f"{Fore.LIGHTRED_EX}Error: vm_name field is missing!{Style.RESET_ALL}"
             )
             sys.exit(1)
-        if "memory" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: memory field is missing!{Style.RESET_ALL}")
-            sys.exit(1)
-        if int(vm["memory"]) < 512:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: memory field must be at least 512!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if "tapnum" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: tapnum field is missing!{Style.RESET_ALL}")
-            sys.exit(1)
         if "master_image" not in vm:
             print(
                 f"{Fore.LIGHTRED_EX}Error: master_image field is missing!{Style.RESET_ALL}"
             )
+            sys.exit(1)
+        if vm["os"] in ["linux", "windows"] and "memory" not in vm:
+            print(f"{Fore.LIGHTRED_EX}Error: memory field is missing!{Style.RESET_ALL}")
+            sys.exit(1)
+        if vm["os"] in ["linux, windows"] and int(vm["memory"]) < 512:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: memory field must be at least 512!{Style.RESET_ALL}"
+            )
+            sys.exit(1)
+        if vm["os"] in ["linux, windows"] and "tapnum" not in vm:
+            print(f"{Fore.LIGHTRED_EX}Error: tapnum field is missing!{Style.RESET_ALL}")
+            sys.exit(1)
+        if vm["os"] == "iosxe" and "tapnumlist" not in vm:
+            print(f"{Fore.LIGHTRED_EX}Error: tapnumlist field is missing!{Style.RESET_ALL}")
             sys.exit(1)
         if "force_copy" not in vm:
             print(
                 f"{Fore.LIGHTRED_EX}Error: force_copy field is missing!{Style.RESET_ALL}"
             )
             sys.exit(1)
+        if "os" not in vm:
+            print(f"{Fore.LIGHTRED_EX}Error: os field is missing!{Style.RESET_ALL}")
+            sys.exit(1)
+        if vm["os"] not in ["linux", "iosxe", "windows"]:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: os must be 'linux' or 'windows' or 'iosxe'!{Style.RESET_ALL}"
+            )
+            sys.exit(1)
+        if vm["os"] == "iosxe" and "devices" in vm:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: devices field is not allowed for IOS XE VM!{Style.RESET_ALL}"
+            )
+            sys.exit(1)
+
+
+def check_unique_tapnums(data):
+    tapnums = set()
+    for vm in data["kvm"]["vms"]:
+        if vm["os"] in ["linux", "windows"]:
+            if vm["tapnum"] in tapnums:
+                print(f"{Fore.LIGHTRED_EX}Error: Duplicate tapnum {vm['tapnum']} found for {vm['vm_name']}{Style.RESET_ALL}")
+                sys.exit(1)
+            tapnums.add(vm["tapnum"])
+        elif vm["os"] == "iosxe":
+            for tapnum in vm["tapnumlist"]:
+                if tapnum in tapnums:
+                    print(f"{Fore.LIGHTRED_EX}Error: Duplicate tapnum {tapnum} found in tapnumlist for {vm['vm_name']}{Style.RESET_ALL}")
+                    sys.exit(1)
+                tapnums.add(tapnum)
 
 
 # Get VM image format from master image extension
@@ -216,69 +248,99 @@ def is_tap_in_use(tapnum):
         return True
 
 
+def build_device_command(store, dev_filename, dev_format, dev_id, dev_idx, dev_addr):
+    if store["bus"] == "virtio":
+        return [
+            "-drive",
+            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+            "-device",
+            f"virtio-blk-pci,drive={dev_id},scsi=off,config-wce=off",
+        ]
+    elif store["bus"] == "scsi":
+        return [
+            "-device",
+            f"virtio-scsi-pci,id=scsi{dev_idx},bus=pcie.0",
+            "-drive",
+            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+            "-device",
+            f"scsi-hd,drive={dev_id},channel=0,scsi-id={dev_idx},lun={dev_addr}",
+        ]
+    elif store["bus"] == "nvme":
+        return [
+            "-drive",
+            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
+            "-device",
+            f"nvme,drive={dev_id},serial=feedcafe{dev_idx}",
+        ]
+    return []
+
+
+def create_image_if_not_exists(store):
+    dev_filename = store["dev_name"]
+    dev_format = get_image_format(dev_filename)
+    dev_id = store["dev_name"].split(".")[0]
+    if os.path.exists(dev_filename):
+        print(f"{Fore.LIGHTGREEN_EX}{dev_id} already exists!{Style.RESET_ALL}")
+    else:
+        print(f"{Fore.LIGHTBLUE_EX}Creating {dev_id}...{Style.RESET_ALL}")
+        subprocess.run(
+            [
+                "qemu-img",
+                "create",
+                "-f",
+                dev_format,
+                "-o",
+                "lazy_refcounts=on,extended_l2=on",
+                dev_filename,
+                store["size"],
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )  # nosec
+
+
 # Build the qemu command
 def build_qemu_cmd(vm):
-    script = f"{MASTER_DIR}/scripts/ovs-startup.sh"
-    vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
-    dev_cmd = []
-    if "devices" in vm:
-        dev_idx = 0
-        if vm["devices"]["storage"]:
-            for store in vm["devices"]["storage"]:
-                if store["type"] == "disk":
+    if vm["os"] == "linux":
+        script = f"{MASTER_DIR}/scripts/ovs-startup.sh"
+        vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
+        cmd = [script, vm_file, str(vm["memory"]), str(vm["tapnum"]), "linux"]
+        if "devices" in vm:
+            dev_idx = 1
+            dev_cmd = []
+            if vm["devices"]["storage"]:
+                for store in vm.get("devices", {}).get("storage", []):
+                    create_image_if_not_exists(store)
                     dev_filename = store["dev_name"]
                     dev_format = get_image_format(dev_filename)
-                    dev_id = store["dev_name"].split(".")[0]
-                    if os.path.exists(store["dev_name"]):
-                        print(
-                            f"{Fore.LIGHTGREEN_EX}{dev_id} already exists!{Style.RESET_ALL}"
-                        )
-                    else:
-                        print(
-                            f"{Fore.LIGHTBLUE_EX}Creating {dev_id}...{Style.RESET_ALL}"
-                        )
-                        subprocess.run(
-                            [
-                                "qemu-img",
-                                "create",
-                                "-f",
-                                dev_format,
-                                "-o",
-                                "lazy_refcounts=on,extended_l2=on",
-                                store["dev_name"],
-                                store["size"],
-                            ],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )  # nosec
-                    if store["bus"] == "virtio":
-                        dev_cmd = dev_cmd + [
-                            "-drive",
-                            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
-                            "-device",
-                            f"virtio-blk-pci,drive={dev_id},scsi=off,config-wce=off",
-                        ]
-                    elif store["bus"] == "scsi":
-                        dev_addr = dev_idx + 2
-                        dev_cmd = dev_cmd + [
-                            "-device",
-                            f"virtio-scsi-pci,id=scsi{dev_idx},bus=pcie.0",
-                            "-drive",
-                            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
-                            "-device",
-                            f"scsi-hd,bus=scsi0.0,drive={dev_id},channel=0,scsi-id={dev_idx},lun={dev_addr}",
-                        ]
-                    elif store["bus"] == "nvme":
-                        dev_cmd = dev_cmd + [
-                            "-drive",
-                            f"file={dev_filename},format={dev_format},media=disk,if=none,id={dev_id},cache=writeback",
-                            "-device",
-                            f"nvme,drive={dev_id},serial=feedcafe{dev_idx}",
-                        ]
-        dev_idx += 1
-    cmd = [script, vm_file, str(vm["memory"]), str(vm["tapnum"])]
-    if dev_cmd:
-        cmd = cmd + dev_cmd
+                    dev_id = f"drive{dev_idx}"
+                    dev_addr = store.get("addr", 0)
+                    dev_cmd.extend(build_device_command(store, dev_filename, dev_format, dev_id, dev_idx, dev_addr))
+                    dev_idx += 1
+                cmd.extend(dev_cmd)
+    elif vm["os"] == "windows":
+        script = f"{MASTER_DIR}/scripts/ovs-startup.sh"
+        vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
+        cmd = [script, vm_file, str(vm["memory"]), str(vm["tapnum"]), "windows"]
+        if "devices" in vm:
+            dev_idx = 1
+            dev_cmd = []
+            if vm["devices"]["storage"]:
+                for store in vm.get("devices", {}).get("storage", []):
+                    create_image_if_not_exists(store)
+                    dev_filename = store["dev_name"]
+                    dev_format = get_image_format(dev_filename)
+                    dev_id = f"drive{dev_idx}"
+                    dev_addr = store.get("addr", 0)
+                    dev_cmd.extend(build_device_command(store, dev_filename, dev_format, dev_id, dev_idx, dev_addr))
+                    dev_idx += 1
+                cmd.extend(dev_cmd)
+    elif vm["os"] == "iosxe":
+        script = f"{MASTER_DIR}/scripts/ovs-iosxe.sh"
+        vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
+        cmd = [script, vm_file]
+        for intf in vm["tapnumlist"]:
+            cmd.append(str(intf))
     return cmd
 
 
@@ -290,9 +352,16 @@ def main():
     arg = check_args()
     data = read_yaml(arg.file)
     check_mandatory_fields(data)
+    check_unique_tapnums(data)
     # Loop through the virtual machines
     for vm in data["kvm"]["vms"]:
-        if not is_vm_running(vm["vm_name"]) and not is_tap_in_use(vm["tapnum"]):
+        if not is_vm_running(vm["vm_name"]):
+            if vm["os"] in ["linux", "windows"] and is_tap_in_use(vm["tapnum"]):
+                sys.exit(1)
+            elif vm["os"] == "iosxe":
+                for intf in vm["tapnumlist"]:
+                    if is_tap_in_use(intf):
+                        sys.exit(1)
             # Copy the master image to the VM image
             # If force_copy is True copy the image even if it exists
             copy_image(vm["master_image"], vm["vm_name"], vm["force_copy"])
