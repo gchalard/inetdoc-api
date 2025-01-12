@@ -70,7 +70,9 @@ def check_mandatory_fields(data):
             print(f"{Fore.LIGHTRED_EX}Error: tapnum field is missing!{Style.RESET_ALL}")
             sys.exit(1)
         if vm["os"] == "iosxe" and "tapnumlist" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: tapnumlist field is missing!{Style.RESET_ALL}")
+            print(
+                f"{Fore.LIGHTRED_EX}Error: tapnumlist field is missing!{Style.RESET_ALL}"
+            )
             sys.exit(1)
         if "force_copy" not in vm:
             print(
@@ -97,13 +99,17 @@ def check_unique_tapnums(data):
     for vm in data["kvm"]["vms"]:
         if vm["os"] in ["linux", "windows"]:
             if vm["tapnum"] in tapnums:
-                print(f"{Fore.LIGHTRED_EX}Error: Duplicate tapnum {vm['tapnum']} found for {vm['vm_name']}{Style.RESET_ALL}")
+                print(
+                    f"{Fore.LIGHTRED_EX}Error: Duplicate tapnum {vm['tapnum']} found for {vm['vm_name']}{Style.RESET_ALL}"
+                )
                 sys.exit(1)
             tapnums.add(vm["tapnum"])
         elif vm["os"] == "iosxe":
             for tapnum in vm["tapnumlist"]:
                 if tapnum in tapnums:
-                    print(f"{Fore.LIGHTRED_EX}Error: Duplicate tapnum {tapnum} found in tapnumlist for {vm['vm_name']}{Style.RESET_ALL}")
+                    print(
+                        f"{Fore.LIGHTRED_EX}Error: Duplicate tapnum {tapnum} found in tapnumlist for {vm['vm_name']}{Style.RESET_ALL}"
+                    )
                     sys.exit(1)
                 tapnums.add(tapnum)
 
@@ -315,7 +321,11 @@ def build_qemu_cmd(vm):
                     dev_format = get_image_format(dev_filename)
                     dev_id = f"drive{dev_idx}"
                     dev_addr = store.get("addr", 0)
-                    dev_cmd.extend(build_device_command(store, dev_filename, dev_format, dev_id, dev_idx, dev_addr))
+                    dev_cmd.extend(
+                        build_device_command(
+                            store, dev_filename, dev_format, dev_id, dev_idx, dev_addr
+                        )
+                    )
                     dev_idx += 1
                 cmd.extend(dev_cmd)
     elif vm["os"] == "windows":
@@ -332,7 +342,11 @@ def build_qemu_cmd(vm):
                     dev_format = get_image_format(dev_filename)
                     dev_id = f"drive{dev_idx}"
                     dev_addr = store.get("addr", 0)
-                    dev_cmd.extend(build_device_command(store, dev_filename, dev_format, dev_id, dev_idx, dev_addr))
+                    dev_cmd.extend(
+                        build_device_command(
+                            store, dev_filename, dev_format, dev_id, dev_idx, dev_addr
+                        )
+                    )
                     dev_idx += 1
                 cmd.extend(dev_cmd)
     elif vm["os"] == "iosxe":

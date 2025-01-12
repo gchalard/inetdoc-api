@@ -19,6 +19,7 @@ These scripts are the low level scripts. They can be used as a reference to
 start a single virtual machine.
 
 - `ovs-startup.sh` starts all linux virtual machines. It includes:
+
   - Configuration of TAP interfaces
   - Generation of SPICE passwords
   - Support for UEFI boot with OVMF
@@ -30,6 +31,7 @@ start a single virtual machine.
 
 - `ovs-iosxe.sh` starts Cisco virtual routers such as Cloud Services Router
   1000V or Cisco Catalyst 8000V Edge Software. It includes:
+
   - Configuration of 3 TAP interfaces like the physical ISR4321 routers
 
 - `ovs-nxos.sh` starts Cisco Nexus 9000v Switches such as 9300 or 9500
@@ -45,12 +47,14 @@ virtual machines with automatic networking. Then, they will be able to declare
 the network topology.
 
 - `lab-startup.py` manages the startup of multiple virtual machines defined in a YAML file. It includes:
+
   - Verification of the uniqueness of TAP interface numbers
   - Creation of storage images if they do not exist for Linux or Windows OS
   - Building and executing QEMU commands based on the configuration
   - Handling different operating systems (`linux`, `windows`, `iosxe`)
 
   Example of a Linux or Windows YAML file:
+
   ```yaml
   kvm:
     vms:
@@ -69,6 +73,7 @@ the network topology.
   ```
 
   Example of an IOSXE YAML file:
+
   ```yaml
   kvm:
     vms:
