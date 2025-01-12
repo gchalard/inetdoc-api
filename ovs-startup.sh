@@ -78,7 +78,6 @@ if [[ -n ${user_tap} ]]; then
 fi
 
 # Is the GPU set according to the OS type ?
-echo "OS type : ${os_type}"
 if [[ ${os_type} == "linux" ]]; then
 	gpu_driver="qxl,vgamem_mb=64,vram64_size_mb=64,vram_size_mb=64"
 elif [[ ${os_type} == "windows" ]]; then

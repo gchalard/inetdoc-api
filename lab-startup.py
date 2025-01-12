@@ -6,15 +6,16 @@ import os
 import re
 import subprocess  # nosec B404
 import sys
+from pathlib import Path
 
 import yaml
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
 # Constants
-MASTER_DIR = f"{os.environ.get('HOME')}/masters"
-OVMF_CODE = "/usr/share/OVMF/OVMF_CODE_4M.secboot.fd"
-OVMF_VARS = "/usr/share/OVMF/OVMF_VARS_4M.ms.fd"
+MASTER_DIR = Path.home() / "masters"
+OVMF_CODE = Path("/usr/share/OVMF/OVMF_CODE_4M.secboot.fd")
+OVMF_VARS = Path("/usr/share/OVMF/OVMF_VARS_4M.ms.fd")
 
 
 # Use argparse to check if --help or -h is provided
@@ -30,12 +31,17 @@ def check_args():
 def read_yaml(file):
     # check if the yaml file exists
     if not os.path.exists(file):
-        print(f"Error: {file} not found!")
+        print(f"{Fore.LIGHTRED_EX}Error: {file} not found!{Style.RESET_ALL}")
         sys.exit(1)
 
     # open the yaml file
-    with open(file) as f:
-        data = yaml.safe_load(f)
+    with open(file, 'r') as f:
+        try:
+            data = yaml.safe_load(f)
+        except yaml.YAMLError as exc:
+            print(f"{Fore.LIGHTRED_EX}Error: {file} is not a valid YAML file!{Style.RESET_ALL}")
+            print(exc)
+            sys.exit(1)
     return data
 
 
@@ -48,43 +54,41 @@ def check_mandatory_fields(data):
         print(f"{Fore.LIGHTRED_EX}Error: vms section is missing!{Style.RESET_ALL}")
         sys.exit(1)
     for vm in data["kvm"]["vms"]:
-        if "vm_name" not in vm:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: vm_name field is missing!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if "master_image" not in vm:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: master_image field is missing!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if vm["os"] in ["linux", "windows"] and "memory" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: memory field is missing!{Style.RESET_ALL}")
-            sys.exit(1)
-        if vm["os"] in ["linux, windows"] and int(vm["memory"]) < 512:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: memory field must be at least 512!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if vm["os"] in ["linux, windows"] and "tapnum" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: tapnum field is missing!{Style.RESET_ALL}")
-            sys.exit(1)
-        if vm["os"] == "iosxe" and "tapnumlist" not in vm:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: tapnumlist field is missing!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if "force_copy" not in vm:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: force_copy field is missing!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if "os" not in vm:
-            print(f"{Fore.LIGHTRED_EX}Error: os field is missing!{Style.RESET_ALL}")
-            sys.exit(1)
+        # common fields
+        common_fields = ["vm_name", "master_image", "force_copy", "os"]
+        for field in common_fields:
+            if field not in vm:
+                print(
+                    f"{Fore.LIGHTRED_EX}Error: {field} field is missing!{Style.RESET_ALL}"
+                )
+                sys.exit(1)
+        # os field values check
         if vm["os"] not in ["linux", "iosxe", "windows"]:
             print(
                 f"{Fore.LIGHTRED_EX}Error: os must be 'linux' or 'windows' or 'iosxe'!{Style.RESET_ALL}"
+            )
+            sys.exit(1)
+        # linux and windows fields
+        linux_windows_fields = ["memory", "tapnum"]
+        for field in linux_windows_fields:
+            if vm["os"] in ["linux", "windows"] and field not in vm:
+                print(
+                    f"{Fore.LIGHTRED_EX}Error: {field} field is missing!{Style.RESET_ALL}"
+                )
+                sys.exit(1)
+            if (
+                vm["os"] in ["linux, windows"]
+                and field == "memory"
+                and int(vm["memory"]) < 512
+            ):
+                print(
+                    f"{Fore.LIGHTRED_EX}Error: memory field must be at least 512!{Style.RESET_ALL}"
+                )
+                sys.exit(1)
+        # iosxe fields
+        if vm["os"] == "iosxe" and "tapnumlist" not in vm:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: tapnumlist field is missing!{Style.RESET_ALL}"
             )
             sys.exit(1)
         if vm["os"] == "iosxe" and "devices" in vm:
@@ -141,6 +145,7 @@ def build_svi_name(tapnum):
             ["sudo", "ovs-vsctl", "get", "port", tap, "vlan_mode"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            check=True
         )  # nosec
         .stdout.decode("utf-8")
         .strip()
@@ -150,6 +155,7 @@ def build_svi_name(tapnum):
             ["sudo", "ovs-vsctl", "get", "port", tap, "tag"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            check=True
         )  # nosec
         .stdout.decode("utf-8")
         .strip()
@@ -159,6 +165,7 @@ def build_svi_name(tapnum):
             ["sudo", "ovs-vsctl", "port-to-br", tap],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            check=True
         )  # nosec
         .stdout.decode("utf-8")
         .strip()
@@ -192,7 +199,7 @@ def copy_image(master_image, vm_image, force):
                 f"{Fore.LIGHTBLUE_EX}Copying {src_file} to {dst_file}...{Style.RESET_ALL}",
                 end="",
             )
-            cp_result = subprocess.run(["cp", src_file, dst_file])  # nosec
+            cp_result = subprocess.run(["cp", src_file, dst_file], check=True)  # nosec
             if cp_result.returncode == 0:
                 print(f"{Fore.LIGHTBLUE_EX}done{Style.RESET_ALL}")
             else:
@@ -212,11 +219,11 @@ def copy_uefi_files(vm):
     # Check OVMF code symlink
     if not os.path.exists("OVMF_CODE.fd") and not os.path.islink("OVMF_CODE.fd"):
         print(f"{Fore.LIGHTBLUE_EX}Creating OVMF_CODE.fd symlink...{Style.RESET_ALL}")
-        subprocess.run(["ln", "-sf", OVMF_CODE, "OVMF_CODE.fd"])  # nosec
+        subprocess.run(["ln", "-sf", OVMF_CODE, "OVMF_CODE.fd"], check=True)  # nosec
     # Check OVMF vars file
     if not os.path.exists(f"{vm}_OVMF_VARS.fd"):
         print(f"{Fore.LIGHTBLUE_EX}Creating {vm}_OVMF_VARS.fd file...{Style.RESET_ALL}")
-        subprocess.run(["cp", OVMF_VARS, f"{vm}_OVMF_VARS.fd"])  # nosec
+        subprocess.run(["cp", OVMF_VARS, f"{vm}_OVMF_VARS.fd"], check=True)  # nosec
 
 
 # Check if the VM is running
@@ -302,6 +309,7 @@ def create_image_if_not_exists(store):
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            check=True
         )  # nosec
 
 
