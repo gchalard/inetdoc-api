@@ -185,7 +185,7 @@ ionice -c3 nohup qemu-system-x86_64 \
 	-device virtio-net-pci,mq=on,vectors=6,netdev=net"${tapnum}",disable-legacy=on,disable-modern=off,mac="${macaddress}",bus=pcie.0 \
 	-netdev type=tap,queues=2,ifname=tap"${tapnum}",id=net"${tapnum}",script=no,downscript=no,vhost=on \
 	-serial telnet:localhost:"${telnet}",server,nowait \
-	-device virtio-balloon \
+	-device virtio-balloon-pci \
 	-rtc base=localtime,clock=host \
 	-device i6300esb \
 	-watchdog-action poweroff \
