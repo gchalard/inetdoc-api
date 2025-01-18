@@ -18,10 +18,22 @@ OVMF_CODE = Path("/usr/share/OVMF/OVMF_CODE_4M.secboot.fd")
 OVMF_VARS = Path("/usr/share/OVMF/OVMF_VARS_4M.ms.fd")
 
 
+# Read the yaml template file and return its content as a string
+def read_yaml_template(file):
+    if not os.path.exists(file):
+        return "Template file not found!"
+    with open(file, "r") as f:
+        return f.read()
+
+
 # Use argparse to check if --help or -h is provided
 # requires a yaml file
 def check_args():
-    parser = argparse.ArgumentParser()
+    yaml_template = read_yaml_template(f"{MASTER_DIR}/scripts/linux-lab-template.yaml")
+    parser = argparse.ArgumentParser(
+        description=f"YAML virtual machines declarative file to read.\n\nExample YAML template:\n\n{yaml_template}",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument("file", help="YAML virtual machines declarative file to read")
     args = parser.parse_args()
     return args
