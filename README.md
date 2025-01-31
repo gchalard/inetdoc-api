@@ -1,168 +1,95 @@
-# Virtual machines startup scripts
+# Virtual Machine Startup Scripts
 
-This repository contains all the scripts used to start virtual machines of all
-types on our type-2 hypervisors.
+This repository contains scripts for starting various types of virtual machines on our type-2 hypervisors.
 
-In this context, a type 2 hypervisor is a KVM hypervisor running on a bare metal
-server with Debian GNU/Linux. The hypervisor is configured with Open vSwitch
-(OVS) to connect and manage both the virtual and physical networks.
+## Table of Contents
 
-A large number of tap interfaces are provided on the hypervisor **dsw-host** switch
-for the students to run their virtual machines. These tap interfaces are
-configured in access mode by default and belong to a VLAN with automatic IPv6
-and IPv4 addressing. As the students progress, they will be able to configure
-the swicth port to trunk mode and manage VLANs themselves.
+- [Overview](#overview)
+- [Bash Scripts](#bash-scripts)
+- [Python Scripts](#python-scripts)
+- [Key Features of ovs-startup.sh](#key-features-of-ovs-startupsh)
+- [User Environment Setup](#user-environment-setup)
+- [Hypervisor Environment Setup](#hypervisor-environment-setup)
+- [Installation](#installation)
+- [Switch Port Configuration](#switch-port-configuration)
+
+## Overview
+
+In our setup, a type-2 hypervisor is a KVM hypervisor running on a bare metal server with Debian GNU/Linux. The hypervisor is configured with Open vSwitch (OVS) to manage both virtual and physical networks.
+
+Numerous tap interfaces are provided on the hypervisor's **dsw-host** switch for students to run their virtual machines. These tap interfaces are initially configured in access mode and belong to a VLAN with automatic IPv6 and IPv4 addressing.
 
 ## Bash Scripts
 
-These scripts are the low level scripts. They can be used as a reference to
-start a single virtual machine.
+These low-level scripts can be used as a reference to start a single virtual machine.
 
-- `ovs-startup.sh` starts all linux virtual machines. It includes:
+### ovs-startup.sh
 
-  - Configuration of TAP interfaces
-  - Generation of SPICE passwords
-  - Support for UEFI boot with OVMF
-  - Advanced QEMU options for performance and security
-  - Management of different GPU drivers
-    - qxl with 64MB of video memory for Linux virtual machines
-    - qxl-vga with 256MB of video memory for Windows virtual machines
-  - Management of TPM support with swtpm
+This script starts all Linux virtual machines. It includes:
 
-- `ovs-iosxe.sh` starts Cisco virtual routers such as Cloud Services Router
-  1000V or Cisco Catalyst 8000V Edge Software. It includes:
+- TAP interface configuration
+- SPICE password generation
+- UEFI boot support with OVMF
+- Advanced QEMU options for performance and security
+- Management of different GPU drivers
+- TPM support with swtpm
 
-  - Configuration of 3 TAP interfaces like the physical ISR4321 routers
+### ovs-iosxe.sh
 
-- `ovs-nxos.sh` starts Cisco Nexus 9000v Switches such as 9300 or 9500
+This script starts Cisco virtual routers such as Cloud Services Router 1000V or Cisco Catalyst 8000V Edge Software. It configures 3 TAP interfaces like the physical ISR4321 routers.
+
+### ovs-nxos.sh
+
+This script starts Cisco Nexus 9000v Switches such as 9300 or 9500.
 
 ## Python Scripts
 
-These scripts are declarative and can be used to start multiple virtual
-machines.
+These declarative scripts can be used to start multiple virtual machines.
 
-To respect the teaching progression, the networking declaration is separated
-from the virtual machine declaration. At the beginning, students will only use
-virtual machines with automatic networking. Then, they will be able to declare
-the network topology.
+### lab-startup.py
 
-- `lab-startup.py` manages the startup of multiple virtual machines defined in a YAML file. It includes:
+This script manages the startup of multiple virtual machines defined in a YAML file. It includes:
 
-  - Verification of the uniqueness of TAP interface numbers
-  - Creation of storage images if they do not exist for Linux or Windows OS
-  - Building and executing QEMU commands based on the configuration
-  - Handling different operating systems (`linux`, `windows`, `iosxe`)
+- Verification of TAP interface number uniqueness
+- Creation of storage images if they don't exist for Linux or Windows OS
+- Building and executing QEMU commands based on configuration
+- Handling different operating systems (`linux`, `windows`, `iosxe`)
 
-  Example of a Linux YAML file:
+Usage example:
 
-  ```yaml
-  kvm:
-    vms:
-      - vm_name: # a virtual machine file name
-        os: # [linux, windows] operating system
-        master_image: # debian-VERSION-amd64.qcow2 master image file to be used
-        force_copy: # [true,false] force copy the master image to the VM image
-        memory: # memory in MB
-        tapnum: # tap interface number
-        devices:
-          storage:
-            - dev_name: # supplemental disk file name with its extension to set format
-              type: disk
-              size: 32G # size of the disk
-              bus: # [scsi, virtio, nvme] bus type
-  ```
+```bash
+python3 lab-startup.py lab.yaml
+```
 
-  Example of an IOSXE YAML file:
+For YAML file examples, see [linux-lab.yaml](templates/linux-lab.yaml) or [iosxe-lab.yaml](templates/iosxe-lab.yaml).
 
-  ```yaml
-  kvm:
-    vms:
-      - vm_name: # a virtual router file name
-        os: iosxe
-        master_image: # c8000v-VERSION.qcow2 master image file to be used
-        force_copy: # [true,false] force copy the master image to the VM image
-        tapnumlist: [10, 11, 12]
-  ```
+### switch-conf.py
 
-  Invoked as `python3 lab-startup.py lab.yaml`
+This script configures the hypervisor switch ports declared in a YAML file.
 
-  See [linux-lab.yaml](templates/linux-lab.yaml) or
-  [iosxe-lab.yaml](templates/iosxe-lab.yaml) for examples.
+Usage example:
 
-- `switch-conf.py` sets the configuration of the hypervisor switch ports
-  declared in a YAML file of the form:
+```bash
+python3 switch-conf.py switch.yaml
+```
 
-  ```yaml
-  ovs:
-    switches:
-      - name: SWITCH_NAME
-        ports:
-          - name: tapXXX
-            type: OVSPort
-            vlan_mode: access
-            tag: VLAN_ID_X
-          - name: tapYYY
-            type: OVSPort
-            vlan_mode: access
-            tag: VLAN_ID_Y
-          - name: tapZZZ
-            type: OVSPort
-            vlan_mode: trunk
-            trunks: [VLAN_ID_X, VLAN_ID_Y]
-  ```
+For a YAML file example, see [switch.yaml](templates/switch.yaml).
 
-  Invoked as `python3 switch-conf.py switch.yaml`
+## Key Features of ovs-startup.sh
 
-  See [switch.yaml](templates/switch.yaml) for an example.
+The `ovs-startup.sh` script has several differences from most common QEMU scripts:
 
-## `ovs-startup.sh` script main characteristics
+1. Integration with Open vSwitch (OVS)
+2. Use of TPM (Trusted Platform Module)
+3. UEFI Support with OVMF
+4. SPICE Password Generation
+5. Advanced QEMU Options Configuration
+6. Network Interfaces and VLANs Management
+7. Use of ionice and nohup
 
-The `ovs-startup.sh` script has several differences compared to the most common
-QEMU virtual machine scripts. Here are the main ones:
+## User Environment Setup
 
-1. Integration with Open vSwitch (OVS):
-   The script is designed to start virtual machines connected to Open vSwitch
-   ports via existing TAP interfaces. This allows for advanced virtual network
-   management.
-
-2. Use of TPM (Trusted Platform Module):
-   The script includes the configuration and startup of a TPM emulator (swtpm),
-   which adds an extra layer of security by enabling TPM usage for virtual
-   machines.
-
-3. UEFI Support with OVMF:
-   The script uses UEFI boot files provided by the OVMF package. This is
-   particularly useful for modern operating systems that require UEFI.
-
-4. SPICE Password Generation:
-   The script automatically generates passwords for SPICE sessions and stores
-   them securely. SPICE is used to provide graphical access to virtual
-   machines, and automatic password management enhances security and
-   convenience.
-
-5. Advanced QEMU Options Configuration:
-   The script uses advanced QEMU configuration with specific options for
-   performance and security, such as -cpu max with multiple security options
-   enabled, -device intel-iommu, and -object rng-random.
-
-6. Network Interfaces and VLANs Management:
-   The script checks and configures the VLAN modes of network interfaces,
-   allowing fine-grained management of virtual networks and VLANs associated
-   with virtual machines.
-
-7. Use of ionice and nohup:
-   The script uses ionice to set I/O priority and nohup to run QEMU in the
-   background, ensuring that the process continues to run even after the user
-   disconnects.
-
-The design idea is to make the `ovs-startup.sh` script a flexible tool for
-virtual machines management with tight integration with Open vSwitch and advanced
-security features.
-
-## Setting up the user environment
-
-Here are the commands to set up the environment on the hypervisor on the first
-connection:
+To set up the environment on the hypervisor on first connection, run the following commands:
 
 ```bash
 ln -s /var/cache/kvm/masters ~
@@ -170,36 +97,50 @@ mkdir ~/vm
 ln -s ~/masters/scripts ~/vm/
 ```
 
-Once this basic setup is done for beginners, users can customize their own
-directories.
+## Hypervisor Environment Setup
 
-## Setting up the hypervisor environment
-
-The hypervisoir main directory is `/var/cache/kvm/masters`. It contains both the
-virtual machine master images and the scripts to start the virtual machines.
-
-Here is a sample list of the `masters` directory:
-
-```bash
-ls -1 /var/cache/kvm/masters/*.qcow2
-/var/cache/kvm/masters/c8000v-universalk9.17.15.01a.qcow2
-/var/cache/kvm/masters/debian-stable-amd64.qcow2
-/var/cache/kvm/masters/debian-testing-amd64.qcow2
-/var/cache/kvm/masters/nexus9300v64.10.4.2.F.qcow2
-/var/cache/kvm/masters/nexus9500v64.10.4.2.F.qcow2
-/var/cache/kvm/masters/ubuntu-24.04-desktop.qcow2
-/var/cache/kvm/masters/ubuntu-24.04-devnet.qcow2
-/var/cache/kvm/masters/ubuntu-24.04-server.qcow2
-/var/cache/kvm/masters/win11-mac.qcow2
-/var/cache/kvm/masters/win11.qcow2
-/var/cache/kvm/masters/win22-server.qcow2
-```
+The hypervisor's main directory is `/var/cache/kvm/masters`. It contains both the virtual machine master images and the scripts to start them.
 
 ## Installation
 
-Stated that `git` is installed on the hypervisor, the following command will
-clone the repository in the `/var/cache/kvm/masters` directory:
+Ensure `git` is installed on the hypervisor, then run the following command to clone the repository into the `/var/cache/kvm/masters` directory:
 
 ```bash
-sudo bash -c "mkdir -p /var/cache/kvm/masters && git clone https://gitlab.inetdoc.net/labs/startup-scripts /var/cache/kvm/masters"
+# Create the main masters directory and clone the repository
+sudo bash -c "mkdir -p /var/cache/kvm/masters && \
+    git clone https://gitlab.inetdoc.net/labs/startup-scripts /var/cache/kvm/masters"
+
+# Allow the kvm group users to run Open vSwitch commands without a password
+echo "%kvm    ALL=(ALL) NOPASSWD: /usr/bin/ovs-vsctl, /usr/bin/ovs-ofctl, /usr/bin/ovs-appctl, !/usr/bin/ovs-vsctl del-br dsw-host" | sudo tee /etc/sudoers.d/kvm
+
+# Any authenticated user can run the ovs-vsctl command and launch virtual machines
+echo "*;*;*;Al0000-2400;adm,kvm,netdev,wireshark" | sudo tee -a /etc/security/group.conf
+echo "auth	required			pam_group.so" | sudo tee -a /etc/pam.d/common-auth
 ```
+
+At the normal user level, create the symbolic links to the masters directory and the scripts:
+
+```bash
+ln -s /var/cache/kvm/masters ~
+mkdir ~/vm
+ln -s ~/masters/scripts ~/vm/
+```
+
+Check that groups are correctly set:
+
+```bash
+id
+uid=10000(etudianttest) gid=10000 groupes=10000,4(adm),106(kvm),109(netdev),115(wireshark)
+```
+
+There we go! The scripts are now ready to be used.
+
+## Switch Port Configuration
+
+The `switch-conf.py` script configures Open vSwitch ports using a declarative YAML file. Current features include:
+
+- VLAN mode configuration (access/trunk)
+- VLAN tagging for access ports
+- Multiple VLANs for trunk ports
+- Configuration validation with schema
+- Existing configuration check to avoid redundant changes
