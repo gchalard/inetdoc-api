@@ -67,57 +67,58 @@ def read_yaml(file):
 # Check YAML declaration against the schema
 def check_memory(value):
     if value < 512:
-        raise SchemaError('Memory must be at least 512MB')
+        raise SchemaError("Memory must be at least 512MB")
     return value
 
 
 def validate_vm(vm):
     try:
-        if vm['os'] in ['linux', 'windows']:
+        if vm["os"] in ["linux", "windows"]:
             linux_windows_schema.validate(vm)
-        elif vm['os'] == 'iosxe':
+        elif vm["os"] == "iosxe":
             iosxe_schema.validate(vm)
         else:
             raise SchemaError(f"Invalid OS type: {vm['os']}")
     except SchemaError as e:
-        raise SchemaError(f"Error in VM '{vm.get('vm_name', 'unknown')}': {str(e)}")
+        raise SchemaError(
+            f"Error in VM '{vm.get('vm_name', 'unknown')}': {str(e)}"
+        ) from e
     return vm
 
+
 # Schema definitions
-linux_windows_schema = Schema({
-    'vm_name': str,
-    'os': Or('linux', 'windows'),
-    'master_image': str,
-    'force_copy': bool,
-    'memory': And(int, check_memory),
-    'tapnum': int,
-    Optional('cloud_init'): {
-        Optional('force'): bool,
-        Optional('netplan'): dict,
-        str: object  # Allow any other cloud-init keys
-    },
-    Optional('devices'): {
-        Optional('storage'): [{
-            'dev_name': str,
-            'bus': Or('virtio', 'scsi', 'nvme'),
-            'size': str
-        }]
+linux_windows_schema = Schema(
+    {
+        "vm_name": str,
+        "os": Or("linux", "windows"),
+        "master_image": str,
+        "force_copy": bool,
+        "memory": And(int, check_memory),
+        "tapnum": int,
+        Optional("cloud_init"): {
+            Optional("force"): bool,
+            Optional("netplan"): dict,
+            str: object,  # Allow any other cloud-init keys
+        },
+        Optional("devices"): {
+            Optional("storage"): [
+                {"dev_name": str, "bus": Or("virtio", "scsi", "nvme"), "size": str}
+            ]
+        },
     }
-})
+)
 
-iosxe_schema = Schema({
-    'vm_name': str,
-    'os': 'iosxe',
-    'master_image': str,
-    'force_copy': bool,
-    'tapnumlist': [int]
-})
-
-kvm_schema = Schema({
-    'kvm': {
-        'vms': [Use(validate_vm)]
+iosxe_schema = Schema(
+    {
+        "vm_name": str,
+        "os": "iosxe",
+        "master_image": str,
+        "force_copy": bool,
+        "tapnumlist": [int],
     }
-})
+)
+
+kvm_schema = Schema({"kvm": {"vms": [Use(validate_vm)]}})
 
 
 def check_yaml_declaration(data):
