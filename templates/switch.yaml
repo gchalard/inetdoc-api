@@ -1,0 +1,43 @@
+# This template file is part of https://inetdoc.net project
+#
+# It defines the configuration parameters for the Open vSwitch hypervisor ports
+# used by virtual machines. This YAML declaration file is used by the switch-conf.py
+# script to set up the network connectivity for virtual machines.
+#
+# Students have sudo access to run ovs-vsctl commands. They can configure:
+# - access ports with VLAN tagging
+# - trunk ports with multiple VLANs
+#
+# File: switch.yaml
+# Author: Philippe Latu
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ovs:
+  switches:
+    - name: SWITCH_NAME
+      ports:
+        - name: tapXXX
+          type: OVSPort
+          vlan_mode: access
+          tag: VLAN_ID_X
+        - name: tapYYY
+          type: OVSPort
+          vlan_mode: access
+          tag: VLAN_ID_Y
+        - name: tapZZZ
+          type: OVSPort
+          vlan_mode: trunk
+          trunks: [VLAN_ID_X, VLAN_ID_Y]

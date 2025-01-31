@@ -1,0 +1,46 @@
+# This template file is part of https://inetdoc.net project
+#
+# It defines the parameters used to start two Cisco c8000v virtual routers on our
+# type-2 hypervisors. The hypervisor is configured with Open vSwitch (OVS) to
+# connect and manage both virtual and physical networks.
+#
+# Each virtual router has 3 interfaces:
+# - GigabitEthernet1: dedicated to management and automation (DevNet)
+# - GigabitEthernet2: first data plane interface
+# - GigabitEthernet3: second data plane interface
+#
+# This configuration mimics the Cisco ISR4321 physical router which is present in
+# our lab rooms with the same interface layout:
+# - GigabitEthernet0: management interface
+# - GigabitEthernet0/0/1: first data plane interface
+# - GigabitEthernet0/0/2: second data plane interface
+#
+# File: iosxe-lab.yaml
+# Author: Philippe Latu
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+kvm:
+  vms:
+    - vm_name: <a virtual machine file name>
+      os: iosxe
+      master_image: c8000v-VERSION.qcow2 # master image to be used
+      force_copy: true/false # force copy the master image to the VM image
+      tapnumlist: [<G1 interface tap number>, <G2 interface tap number>, <G3 interface tap number>]
+    - vm_name: <another virtual machine file name>
+      os: iosxe
+      master_image: c8000v-VERSION.qcow2 # master image to be used
+      force_copy: true/false # force copy the master image to the VM image
+      tapnumlist: [<G1 tap interface number>, <G2 tap interface number>, <G3 tap interface number>]

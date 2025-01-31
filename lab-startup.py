@@ -6,16 +6,21 @@ import os
 import re
 import subprocess  # nosec B404
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
 from colorama import Fore, Style
 from colorama import init as colorama_init
+from schema import And, Optional, Or, Schema, SchemaError, Use
 
 # Constants
 MASTER_DIR = Path.home() / "masters"
 OVMF_CODE = Path("/usr/share/OVMF/OVMF_CODE_4M.secboot.fd")
 OVMF_VARS = Path("/usr/share/OVMF/OVMF_VARS_4M.ms.fd")
+
+DEFAULT_NETPLAN_FILE = "/etc/netplan/enp0s1.yaml"
+CLOUD_INIT_NETPLAN_FILE = "/etc/netplan/50-cloud-init.yaml"
 
 
 # Read the yaml template file and return its content as a string
@@ -59,57 +64,68 @@ def read_yaml(file):
     return data
 
 
-# Check if mandatory fields are present in the yaml file
-def check_mandatory_fields(data):
-    if "kvm" not in data:
-        print(f"{Fore.LIGHTRED_EX}Error: kvm section is missing!{Style.RESET_ALL}")
+# Check YAML declaration against the schema
+def check_memory(value):
+    if value < 512:
+        raise SchemaError('Memory must be at least 512MB')
+    return value
+
+
+def validate_vm(vm):
+    try:
+        if vm['os'] in ['linux', 'windows']:
+            linux_windows_schema.validate(vm)
+        elif vm['os'] == 'iosxe':
+            iosxe_schema.validate(vm)
+        else:
+            raise SchemaError(f"Invalid OS type: {vm['os']}")
+    except SchemaError as e:
+        raise SchemaError(f"Error in VM '{vm.get('vm_name', 'unknown')}': {str(e)}")
+    return vm
+
+# Schema definitions
+linux_windows_schema = Schema({
+    'vm_name': str,
+    'os': Or('linux', 'windows'),
+    'master_image': str,
+    'force_copy': bool,
+    'memory': And(int, check_memory),
+    'tapnum': int,
+    Optional('cloud_init'): {
+        Optional('force'): bool,
+        Optional('netplan'): dict,
+        str: object  # Allow any other cloud-init keys
+    },
+    Optional('devices'): {
+        Optional('storage'): [{
+            'dev_name': str,
+            'bus': Or('virtio', 'scsi', 'nvme'),
+            'size': str
+        }]
+    }
+})
+
+iosxe_schema = Schema({
+    'vm_name': str,
+    'os': 'iosxe',
+    'master_image': str,
+    'force_copy': bool,
+    'tapnumlist': [int]
+})
+
+kvm_schema = Schema({
+    'kvm': {
+        'vms': [Use(validate_vm)]
+    }
+})
+
+
+def check_yaml_declaration(data):
+    try:
+        kvm_schema.validate(data)
+    except SchemaError as e:
+        print(f"{Fore.LIGHTRED_EX}Error: {str(e)}{Style.RESET_ALL}")
         sys.exit(1)
-    if "vms" not in data["kvm"]:
-        print(f"{Fore.LIGHTRED_EX}Error: vms section is missing!{Style.RESET_ALL}")
-        sys.exit(1)
-    for vm in data["kvm"]["vms"]:
-        # common fields
-        common_fields = ["vm_name", "master_image", "force_copy", "os"]
-        for field in common_fields:
-            if field not in vm:
-                print(
-                    f"{Fore.LIGHTRED_EX}Error: {field} field is missing!{Style.RESET_ALL}"
-                )
-                sys.exit(1)
-        # os field values check
-        if vm["os"] not in ["linux", "iosxe", "windows"]:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: os must be 'linux' or 'windows' or 'iosxe'!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        # linux and windows fields
-        linux_windows_fields = ["memory", "tapnum"]
-        for field in linux_windows_fields:
-            if vm["os"] in ["linux", "windows"] and field not in vm:
-                print(
-                    f"{Fore.LIGHTRED_EX}Error: {field} field is missing!{Style.RESET_ALL}"
-                )
-                sys.exit(1)
-            if (
-                vm["os"] in ["linux, windows"]
-                and field == "memory"
-                and int(vm["memory"]) < 512
-            ):
-                print(
-                    f"{Fore.LIGHTRED_EX}Error: memory field must be at least 512!{Style.RESET_ALL}"
-                )
-                sys.exit(1)
-        # iosxe fields
-        if vm["os"] == "iosxe" and "tapnumlist" not in vm:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: tapnumlist field is missing!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
-        if vm["os"] == "iosxe" and "devices" in vm:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: devices field is not allowed for IOS XE VM!{Style.RESET_ALL}"
-            )
-            sys.exit(1)
 
 
 def check_unique_tapnums(data):
@@ -327,6 +343,82 @@ def create_image_if_not_exists(store):
         )  # nosec
 
 
+# Create cloud-init metadata and userdata files
+def create_cloud_init_files(vm):
+    if "cloud_init" not in vm:
+        return None
+
+    seed_img = f"{vm['vm_name']}-seed.img"
+
+    # Check if seed.img should be created
+    if not vm["cloud_init"].get("force_seed", False) and os.path.exists(seed_img):
+        print(f"{Fore.LIGHTGREEN_EX}Using existing {seed_img}{Style.RESET_ALL}")
+        return seed_img
+
+    print(f"{Fore.LIGHTBLUE_EX}Creating {seed_img}...{Style.RESET_ALL}")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Create metadata file
+        metadata = {"instance-id": vm["vm_name"], "local-hostname": vm["vm_name"]}
+
+        # Add bootcmd to remove old netplan file
+        if "netplan" in vm["cloud_init"]:
+            if "bootcmd" not in vm["cloud_init"]:
+                vm["cloud_init"]["bootcmd"] = []
+            vm["cloud_init"]["bootcmd"].append(f"rm -f {DEFAULT_NETPLAN_FILE}")
+
+            # Add write_files for new netplan config
+            if "write_files" not in vm["cloud_init"]:
+                vm["cloud_init"]["write_files"] = []
+            vm["cloud_init"]["write_files"].append(
+                {
+                    "path": CLOUD_INIT_NETPLAN_FILE,
+                    "content": yaml.dump(vm["cloud_init"]["netplan"]),
+                }
+            )
+
+            # Add runcmd to apply new config
+            if "runcmd" not in vm["cloud_init"]:
+                vm["cloud_init"]["runcmd"] = []
+            vm["cloud_init"]["runcmd"].extend(["netplan generate", "netplan apply"])
+
+            # Remove netplan key as it's now processed
+            del vm["cloud_init"]["netplan"]
+
+        with open(f"{tmp_dir}/meta-data", "w") as f:
+            yaml.dump(metadata, f)
+
+        # Create user-data file
+        with open(f"{tmp_dir}/user-data", "w") as f:
+            f.write("#cloud-config\n")
+            yaml.dump(vm["cloud_init"], f)
+
+        # Create seed image
+        try:
+            subprocess.run(
+                [
+                    "cloud-localds",
+                    seed_img,
+                    f"{tmp_dir}/user-data",
+                    f"{tmp_dir}/meta-data",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )  # nosec
+        except FileNotFoundError:
+            print(
+                f"{Fore.LIGHTRED_EX}Error: cloud-localds command not found. Please install cloud-image-utils package.{Style.RESET_ALL}"
+            )
+            sys.exit(1)
+        except subprocess.CalledProcessError as e:
+            print(
+                f"{Fore.LIGHTRED_EX}Error creating seed image: {e.stderr}{Style.RESET_ALL}"
+            )
+            sys.exit(1)
+
+        return seed_img
+
+
 # Build the qemu command
 def build_qemu_cmd(vm):
     if vm["os"] == "linux":
@@ -350,6 +442,10 @@ def build_qemu_cmd(vm):
                     )
                     dev_idx += 1
                 cmd.extend(dev_cmd)
+        seed_img = create_cloud_init_files(vm)
+        if seed_img:
+            cmd.extend(["-drive", f"file={seed_img},format=raw,if=virtio"])
+
     elif vm["os"] == "windows":
         script = f"{MASTER_DIR}/scripts/ovs-startup.sh"
         vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
@@ -371,6 +467,7 @@ def build_qemu_cmd(vm):
                     )
                     dev_idx += 1
                 cmd.extend(dev_cmd)
+
     elif vm["os"] == "iosxe":
         script = f"{MASTER_DIR}/scripts/ovs-iosxe.sh"
         vm_file = vm["vm_name"] + "." + get_image_format(vm["master_image"])
@@ -387,7 +484,7 @@ def main():
     # Check if the yaml lab file is provided and read it
     arg = check_args()
     data = read_yaml(arg.file)
-    check_mandatory_fields(data)
+    check_yaml_declaration(data)
     check_unique_tapnums(data)
     # Loop through the virtual machines
     for vm in data["kvm"]["vms"]:
