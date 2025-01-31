@@ -1,0 +1,97 @@
+# This template file is part of https://inetdoc.net project
+#
+# It defines the parameters used to customize Linux virtual machines with cloud-init
+# on our type-2 hypervisors. The customization includes:
+# - User creation with sudo privileges
+# - SSH key deployment
+# - Package installation
+# - Network configuration with netplan
+#
+# Cloud-init key definitions:
+# - force_seed: [true/false] force regeneration of seed.img file
+# - users: list of users to create
+#   - name: username for the new account
+#   - sudo: sudo privileges for the account
+#   - ssh_authorized_keys: list of SSH public keys to add
+# - hostname: hostname to set on the virtual machine
+# - packages: list of packages to install at first boot
+# - netplan: network configuration using netplan format
+#
+# File: cloud-init-lab.yaml
+# Author: Philippe Latu
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+kvm:
+  vms:
+    - vm_name: vm1-cloud-init
+      os: linux
+      master_image: debian-testing-amd64.qcow2
+      force_copy: false
+      memory: 2048
+      tapnum: 1
+      devices:
+        storage:
+          - dev_name: vm1-nvme-disk1.qcow2
+            type: disk
+            size: 32G
+            bus: nvme
+      cloud_init:
+        force_seed: false
+        users:
+          - name: admin
+            sudo: ALL=(ALL) NOPASSWD:ALL
+            ssh_authorized_keys:
+              - ssh-ed25519 AAAA...
+        hostname: vm1
+        packages:
+          - openvswitch-switch
+        netplan:
+          network:
+            version: 2
+            renderer: networkd
+            ethernets:
+              enp0s1:
+                dhcp4: false
+                dhcp6: false
+                accept-ra: false
+                addresses:
+                  - XXX.XXX.XXX.10/23
+                  - 2001:XXXX:XXXX:XXXX::a/64
+                routes:
+                  - to: default
+                    via: XXX.XXX.XXX.1
+                  - to: "::/0"
+                    via: fe80::XXXX:1
+                    on-link: true
+                nameservers:
+                  addresses:
+                    - 9.9.9.11
+                    - 2620:fe::11
+
+            openvswitch: {}
+
+            bridges:
+              c-3po:
+                openvswitch: {}
+
+            vlans:
+              vlan10:
+                id: 10
+                link: c-3po
+                addresses:
+                  - 192.0.2.1/24
+                  - fdXX:XXXX:a::1/64
+                  - fe80:a::1/64

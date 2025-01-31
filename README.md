@@ -53,7 +53,7 @@ the network topology.
   - Building and executing QEMU commands based on the configuration
   - Handling different operating systems (`linux`, `windows`, `iosxe`)
 
-  Example of a Linux or Windows YAML file:
+  Example of a Linux YAML file:
 
   ```yaml
   kvm:
@@ -86,8 +86,8 @@ the network topology.
 
   Invoked as `python3 lab-startup.py lab.yaml`
 
-  See [linux-lab-template.yaml](linux-lab-template.yaml) or
-  [iosxe-lab-template.yaml](iosxe-lab-template.yaml) for examples.
+  See [linux-lab.yaml](templates/linux-lab.yaml) or
+  [iosxe-lab.yaml](templates/iosxe-lab.yaml) for examples.
 
 - `switch-conf.py` sets the configuration of the hypervisor switch ports
   declared in a YAML file of the form:
@@ -113,7 +113,7 @@ the network topology.
 
   Invoked as `python3 switch-conf.py switch.yaml`
 
-  See [switch-template.yaml](switch-template.yaml) for an example.
+  See [switch.yaml](templates/switch.yaml) for an example.
 
 ## `ovs-startup.sh` script main characteristics
 
