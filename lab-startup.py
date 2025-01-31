@@ -1,6 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# This script is part of https://inetdoc.net project
+#
+# It provides a declarative approach to virtual machine management on our type-2
+# hypervisors. The virtual machines are defined in YAML files and this script
+# calls the corresponding shell scripts to start them:
+# - ovs-startup.sh for Linux and Windows virtual machines
+# - ovs-iosxe.sh for Cisco C8000v virtual routers
+#
+# The shell scripts describe the virtual systems architecture:
+# - Memory allocation
+# - Storage device types and sizes
+# - Network interface types and connections
+# - GPU device types
+#
+# File: lab-startup.py
+# Author: Philippe Latu
+# Source: https://gitlab.inetdoc.net/labs/startup-scripts
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 import argparse
 import os
 import re
