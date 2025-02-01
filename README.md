@@ -190,7 +190,7 @@ There we go! The scripts are now ready to be used.
 When you want to set up a virtual machine configuration, **Cloud-init** is a useful tool.
 In our case, the configuration is set up using the YAML declaration file starting with the `cloud-init:` keyword.
 
-You can find an example in the `templates` directory (see [cloud-init-lab.yaml] (templates/cloud-init-lab.yaml)).
+You can find an example in the `templates` directory (see [cloud-init-lab.yaml](templates/cloud-init-lab.yaml)).
 The `lab-startup.py` script will build a `seed.img` file containing the cloud-init configuration declared in the YAML file.
 The `seed.img` file will be attached to the virtual machine as a supplemental disk.
 
@@ -206,7 +206,7 @@ The `seed.img` file will be attached to the virtual machine as a supplemental di
 When you want to add additional storage devices to your virtual machine, you can use the `devices:` keyword in the YAML file.
 The `lab-startup.py` script will create the storage devices and attach them to the virtual machine.
 
-You can find an example in the `templates` directory (see [linux-lab.yaml] (templates/linux-lab.yaml)).
+You can find an example in the `templates` directory (see [linux-lab.yaml](templates/linux-lab.yaml)).
 
 ### Additional storage devices features
 
