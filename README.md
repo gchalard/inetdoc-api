@@ -8,10 +8,9 @@ This repository contains scripts for starting various types of virtual machines 
 - [Bash Scripts](#bash-scripts)
 - [Python Scripts](#python-scripts)
 - [Key Features of ovs-startup.sh](#key-features-of-ovs-startupsh)
-- [User Environment Setup](#user-environment-setup)
 - [Hypervisor Environment Setup](#hypervisor-environment-setup)
+- [User Environment Setup](#user-environment-setup)
 - [Installation](#installation)
-- [Switch Port Configuration](#switch-port-configuration)
 
 ## Overview
 
@@ -34,9 +33,33 @@ This script starts all Linux virtual machines. It includes:
 - Management of different GPU drivers
 - TPM support with swtpm
 
+### Key Features of ovs-startup.sh
+
+The `ovs-startup.sh` script has several differences from most common QEMU scripts:
+
+1. Integration with Open vSwitch (OVS)
+2. Use of TPM (Trusted Platform Module)
+3. UEFI Support with OVMF
+4. SPICE Password Generation
+5. Advanced QEMU Options Configuration
+6. Network Interfaces and VLANs Management
+7. Use of ionice and nohup
+
+Usage example for a Debian virtual machine with 1GB of RAM and using `tap0` switch port:
+
+```bash
+ovs-startup.sh debian-testing-amd64.qcow2 1024 0
+```
+
 ### ovs-iosxe.sh
 
 This script starts Cisco virtual routers such as Cloud Services Router 1000V or Cisco Catalyst 8000V Edge Software. It configures 3 TAP interfaces like the physical ISR4321 routers.
+
+Usage example for a Cisco Catalyst 8000V Edge Software virtual router with 3 TAP interfaces (`tap7`, `tap8`, `tap9`):
+
+```bash
+ovs-iosxe.sh c8000v-universalk9.17.16.01a.qcow2 7 8 9
+```
 
 ### ovs-nxos.sh
 
@@ -65,7 +88,13 @@ For YAML file examples, see [linux-lab.yaml](templates/linux-lab.yaml) or [iosxe
 
 ### switch-conf.py
 
-This script configures the hypervisor switch ports declared in a YAML file.
+The `switch-conf.py` script configures Open vSwitch ports using a declarative YAML file. Current features include:
+
+- VLAN mode configuration (access/trunk)
+- VLAN tagging for access ports
+- Multiple VLANs for trunk ports
+- Configuration validation with schema
+- Existing configuration check to avoid redundant changes
 
 Usage example:
 
@@ -74,28 +103,6 @@ python3 switch-conf.py switch.yaml
 ```
 
 For a YAML file example, see [switch.yaml](templates/switch.yaml).
-
-## Key Features of ovs-startup.sh
-
-The `ovs-startup.sh` script has several differences from most common QEMU scripts:
-
-1. Integration with Open vSwitch (OVS)
-2. Use of TPM (Trusted Platform Module)
-3. UEFI Support with OVMF
-4. SPICE Password Generation
-5. Advanced QEMU Options Configuration
-6. Network Interfaces and VLANs Management
-7. Use of ionice and nohup
-
-## User Environment Setup
-
-To set up the environment on the hypervisor on first connection, run the following commands:
-
-```bash
-ln -s /var/cache/kvm/masters ~
-mkdir ~/vm
-ln -s ~/masters/scripts ~/vm/
-```
 
 ## Hypervisor Environment Setup
 
@@ -111,14 +118,19 @@ sudo bash -c "mkdir -p /var/cache/kvm/masters && \
     git clone https://gitlab.inetdoc.net/labs/startup-scripts /var/cache/kvm/masters"
 
 # Allow the kvm group users to run Open vSwitch commands without a password
-echo "%kvm    ALL=(ALL) NOPASSWD: /usr/bin/ovs-vsctl, /usr/bin/ovs-ofctl, /usr/bin/ovs-appctl, !/usr/bin/ovs-vsctl del-br dsw-host" | sudo tee /etc/sudoers.d/kvm
+echo "%kvm    ALL=(ALL) NOPASSWD: /usr/bin/ovs-vsctl, /usr/bin/ovs-ofctl, /usr/bin/ovs-appctl, !/usr/bin/ovs-vsctl del-br dsw-host" |\
+    sudo tee /etc/sudoers.d/kvm
 
 # Any authenticated user can run the ovs-vsctl command and launch virtual machines
-echo "*;*;*;Al0000-2400;adm,kvm,netdev,wireshark" | sudo tee -a /etc/security/group.conf
-echo "auth	required			pam_group.so" | sudo tee -a /etc/pam.d/common-auth
+echo "*;*;*;Al0000-2400;adm,kvm,netdev,wireshark" |\
+    sudo tee -a /etc/security/group.conf
+echo "auth	required			pam_group.so" |\
+    sudo tee -a /etc/pam.d/common-auth
 ```
 
-At the normal user level, create the symbolic links to the masters directory and the scripts:
+## User Environment Setup
+
+To set up the environment on the hypervisor on first connection, run the following commands:
 
 ```bash
 ln -s /var/cache/kvm/masters ~
@@ -133,14 +145,42 @@ id
 uid=10000(etudianttest) gid=10000 groupes=10000,4(adm),106(kvm),109(netdev),115(wireshark)
 ```
 
+Add the `scripts` directory to the user's PATH:
+
+```bash
+cat << 'EOF' >> ~/.profile
+if [[ ":$PATH:" != *":$HOME/masters/scripts:"* ]]; then
+    PATH="$PATH:$HOME/masters/scripts"
+fi
+EOF
+```
+
 There we go! The scripts are now ready to be used.
 
-## Switch Port Configuration
+## Cloud-init integration
 
-The `switch-conf.py` script configures Open vSwitch ports using a declarative YAML file. Current features include:
+When you want to seed a virtual machien configuration at first boot, **cloud-init** is a convenient tool.
+In our case, seeding configuration is provided by the YAML declaration file starting with the `cloud-init:` keyword.
 
-- VLAN mode configuration (access/trunk)
-- VLAN tagging for access ports
-- Multiple VLANs for trunk ports
-- Configuration validation with schema
-- Existing configuration check to avoid redundant changes
+An sample example is provided in the `templates` directory. See [cloud-init-lab.yaml](templates/cloud-init-lab.yaml).
+
+### Cloud-init features
+
+- Users creation with SSH public keys for authentication
+- Hostname setting
+- Packages installation
+- Network configuration through Netplan.io
+
+## Contribution
+
+Contributions are welcome. To contribute :
+
+- Clone or Fork the project
+- Create a branch for the functionality
+- Commit the changes
+- Push to the branch
+- Open a Pull Request
+
+## License
+
+This project is licensed under the GNU GPL v3 - see the [LICENSE](LICENSE.txt) file for more details.
