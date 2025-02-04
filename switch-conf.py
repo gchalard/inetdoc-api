@@ -184,7 +184,7 @@ def configure_switch_ports(switch, switch_config):
                     ["set", "port", port["name"], f'vlan_mode={port["vlan_mode"]}']
                 )
                 print(
-                    f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} vlan_mode set to {port['vlan_mode']}{Style.RESET_ALL}"
+                    f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} vlan_mode changed to {port['vlan_mode']} mode{Style.RESET_ALL}"
                 )
             else:
                 print(
@@ -197,7 +197,7 @@ def configure_switch_ports(switch, switch_config):
                 if current_tag != str(port["tag"]):
                     run_ovs_command(["set", "port", port["name"], f'tag={port["tag"]}'])
                     print(
-                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} tag set to {port['tag']}{Style.RESET_ALL}"
+                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} tag changed to {port['tag']}{Style.RESET_ALL}"
                     )
                 else:
                     print(
@@ -213,7 +213,7 @@ def configure_switch_ports(switch, switch_config):
                         ["set", "port", port["name"], f"trunks={trunk_vlans}"]
                     )
                     print(
-                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} trunks set to {trunk_vlans}{Style.RESET_ALL}"
+                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} trunk list changed to {trunk_vlans}{Style.RESET_ALL}"
                     )
                 else:
                     print(
@@ -223,6 +223,7 @@ def configure_switch_ports(switch, switch_config):
             print(
                 f"{Fore.LIGHTRED_EX}>> Port {port['name']} does not exist on switch {switch}{Style.RESET_ALL}"
             )
+            sys.exit(1)
 
 
 # main function
