@@ -184,7 +184,7 @@ def configure_switch_ports(switch, switch_config):
                     ["set", "port", port["name"], f'vlan_mode={port["vlan_mode"]}']
                 )
                 print(
-                    f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} vlan_mode changed to {port['vlan_mode']} mode{Style.RESET_ALL}"
+                    f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} vlan_mode changed to {port['vlan_mode']}{Style.RESET_ALL}"
                 )
             else:
                 print(
