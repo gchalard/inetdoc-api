@@ -56,6 +56,36 @@ kvm:
             ssh_authorized_keys:
               - ssh-ed25519 AAAA...
         hostname: vm1
+        write_files:
+          - path: /etc/systemd/system/vrf-ssh.service
+            content: |
+              [Unit]
+              Description=OpenBSD Secure Shell server
+              Documentation=man:sshd(8) man:sshd_config(5)
+              After=network.target nss-user-lookup.target auditd.service
+              ConditionPathExists=!/etc/ssh/sshd_not_to_be_run
+
+              [Service]
+              EnvironmentFile=-/etc/default/ssh
+              ExecStartPre=/usr/sbin/ip vrf exec mgmt-vrf mkdir -p /run/sshd
+              ExecStartPre=/usr/sbin/ip vrf exec mgmt-vrf chmod 0755 /run/sshd
+              ExecStartPre=/usr/sbin/ip vrf exec mgmt-vrf /usr/sbin/sshd -t
+              ExecStart=/usr/sbin/ip vrf exec mgmt-vrf /usr/sbin/sshd
+              ExecReload=/usr/sbin/ip vrf exec mgmt-vrf /usr/sbin/sshd -t
+              ExecReload=/bin/kill -HUP ${MAINPID}
+              KillMode=process
+              Restart=on-failure
+              RestartPreventExitStatus=255
+              Type=notify
+              RuntimeDirectory=sshd
+              RuntimeDirectoryMode=0755
+
+              [Install]
+              WantedBy=multi-user.target
+              Alias=vrf-ssh.service
+        runcmd:
+          - systemctl daemon-reload
+          - systemctl enable --now vrf-ssh.service
         packages:
           - openvswitch-switch
         netplan:
@@ -66,32 +96,15 @@ kvm:
               enp0s1:
                 dhcp4: false
                 dhcp6: false
-                accept-ra: false
-                addresses:
-                  - XXX.XXX.XXX.10/23
-                  - 2001:XXXX:XXXX:XXXX::a/64
-                routes:
-                  - to: default
-                    via: XXX.XXX.XXX.1
-                  - to: "::/0"
-                    via: fe80::XXXX:1
-                    on-link: true
-                nameservers:
-                  addresses:
-                    - 9.9.9.11
-                    - 2620:fe::11
-
-            openvswitch: {}
-
-            bridges:
-              c-3po:
-                openvswitch: {}
-
             vlans:
-              vlan10:
-                id: 10
-                link: c-3po
-                addresses:
-                  - 192.0.2.1/24
-                  - fdXX:XXXX:a::1/64
-                  - fe80:a::1/64
+              vlan68:
+                id: 68
+                link: enp0s1
+                dhcp4: true
+                dhcp6: false
+                accept-ra: true
+            vrfs:
+              mgmt-vrf:
+                table: 68
+                interfaces:
+                  - vlan68
