@@ -102,7 +102,7 @@ file. It includes:
 Usage example:
 
 ```bash
-python3 lab-startup.py lab.yaml
+lab-startup.py lab.yaml
 ```
 
 For YAML file examples, see [linux-lab.yaml](templates/linux-lab.yaml) or
@@ -122,7 +122,7 @@ YAML file. Current features include:
 Usage example:
 
 ```bash
-python3 switch-conf.py switch.yaml
+switch-conf.py switch.yaml
 ```
 
 For a YAML file example, see [switch.yaml](templates/switch.yaml).
@@ -158,7 +158,8 @@ echo "auth	required			pam_group.so" |\
 
 ### User Environment Setup
 
-To set up the environment on the hypervisor on first connection, run the following commands:
+To set up the environment on the hypervisor on first connection, run the
+following commands:
 
 ```bash
 ln -s /var/cache/kvm/masters ~
@@ -187,12 +188,17 @@ There we go! The scripts are now ready to be used.
 
 ## Cloud-init integration
 
-When you want to set up a virtual machine configuration, **Cloud-init** is a useful tool.
-In our case, the configuration is set up using the YAML declaration file starting with the `cloud-init:` keyword.
+When you want to set up a virtual machine configuration, **Cloud-init** is a
+useful tool.
+In our case, the configuration is set up using the YAML declaration file
+starting with the `cloud-init:` keyword.
 
-You can find an example in the `templates` directory (see [cloud-init-lab.yaml](templates/cloud-init-lab.yaml)).
-The `lab-startup.py` script will build a `seed.img` file containing the cloud-init configuration declared in the YAML file.
-The `seed.img` file will be attached to the virtual machine as a supplemental disk.
+You can find an example in the `templates` directory (see
+[cloud-init-lab.yaml](templates/cloud-init-lab.yaml)).
+The `lab-startup.py` script will build a `seed.img` file containing the
+cloud-init configuration declared in the YAML file.
+The `seed.img` file will be attached to the virtual machine as a supplemental
+disk.
 
 ### Cloud-init features
 
@@ -201,16 +207,29 @@ The `seed.img` file will be attached to the virtual machine as a supplemental di
 - Packages installation
 - Network configuration through Netplan.io
 
+You can find two templates in the `templates` directory:
+
+- [cloud-init-ovs-lab.yaml](templates/cloud-init-ovs-lab.yaml) which illustrates
+  the installation of the `openvswitch-switch` package before to apply the netplan
+  configuration
+- [cloud-init-vrf-lab.yaml](templates/cloud-init-vrf-lab.yaml) which illustrates
+  the configuration of a management VRF ('mgmt-vrf') dedicated to automation tools
+  such as Ansible
+
 ## Additional storage devices
 
-When you want to add additional storage devices to your virtual machine, you can use the `devices:` keyword in the YAML file.
-The `lab-startup.py` script will create the storage devices and attach them to the virtual machine.
+When you want to add additional storage devices to your virtual machine, you can
+use the `devices:` keyword in the YAML file.
+The `lab-startup.py` script will create the storage devices and attach them to
+the virtual machine.
 
-You can find an example in the `templates` directory (see [linux-lab.yaml](templates/linux-lab.yaml)).
+You can find an example in the `templates` directory (see
+[linux-lab.yaml](templates/linux-lab.yaml)).
 
 ### Additional storage devices features
 
-- The `name:` keyword is used to set the file name and its extension sets the format (.raw or .qcow2)
+- The `name:` keyword is used to set the file name and its extension sets the
+  format (.raw or .qcow2)
 - The only `type:` supported is `disk` at the moment
 - The `size:` keyword is used to set the size of the storage device in GB
 - The `bus:` keyword is used to set the bus type (ide, scsi, virtio)
@@ -227,4 +246,5 @@ Contributions are welcome. To contribute :
 
 ## License
 
-This project is licensed under the GNU GPL v3 - see the [LICENSE](LICENSE.txt) file for more details.
+This project is licensed under the GNU GPL v3 - see the [LICENSE](LICENSE.txt)
+file for more details.
