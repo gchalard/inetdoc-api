@@ -84,6 +84,42 @@ def console_print(msg, attr) -> None:
         print(f"{Fore.LIGHTRED_EX}{msg}{Style.RESET_ALL}")
 
 
+def run_subprocess(
+    cmd, error_msg, capture_output=False, check=True
+) -> subprocess.CompletedProcess:
+    """
+    Executes a subprocess command with standardised error handling and real-time output display.
+
+    Args:
+        cmd (list): Command to execute.
+        error_msg (str): Error message to display on failure.
+        capture_output (bool): If True, capture output (default False to display output in real time).
+        check (bool): Throw an exception on error (default True).
+
+    Returns:
+        subprocess.CompletedProcess: Result of execution.
+
+    Raises:
+        SystemExit: On execution error.
+    """
+    try:
+        if capture_output:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=check
+            )  # nosec
+        else:
+            result = subprocess.run(
+                cmd, stdout=sys.stdout, stderr=sys.stderr, text=True, check=check
+            )  # nosec
+        return result
+    except subprocess.CalledProcessError as e:
+        console_print(f"{error_msg}: {e.stderr}", ConsoleAttr.ERROR)
+        sys.exit(1)
+    except FileNotFoundError:
+        console_print(f"Commande non trouvée : {cmd[0]}", ConsoleAttr.ERROR)
+        sys.exit(1)
+
+
 def read_yaml_template(file) -> str:
     """Reads and returns the contents of a YAML template file.
 
@@ -436,36 +472,9 @@ def build_svi_name(tapnum) -> str:
         'dsw-host'
     """
     tap = f"tap{tapnum}"
-    vlan_mode = (
-        subprocess.run(
-            ["sudo", "ovs-vsctl", "get", "port", tap, "vlan_mode"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )  # nosec
-        .stdout.decode("utf-8")
-        .strip()
-    )
-    tag = (
-        subprocess.run(
-            ["sudo", "ovs-vsctl", "get", "port", tap, "tag"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )  # nosec
-        .stdout.decode("utf-8")
-        .strip()
-    )
-    switch = (
-        subprocess.run(
-            ["sudo", "ovs-vsctl", "port-to-br", tap],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )  # nosec
-        .stdout.decode("utf-8")
-        .strip()
-    )
+    vlan_mode = run_subprocess(["sudo", "ovs-vsctl", "get", "port", tap, "vlan_mode"])
+    tag = run_subprocess(["sudo", "ovs-vsctl", "get", "port", tap, "tag"])
+    switch = run_subprocess(["sudo", "ovs-vsctl", "port-to-br", tap])
     if vlan_mode == "access":
         return f"vlan{tag}"
     else:
@@ -531,12 +540,11 @@ def copy_image(master_image, vm_image, force) -> None:
             sys.exit(1)
         else:
             console_print(f"Copying {src_file} to {dst_file}...", ConsoleAttr.INFO)
-            cp_result = subprocess.run(["cp", src_file, dst_file], check=True)  # nosec
+            cp_result = run_subprocess(
+                ["cp", src_file, dst_file], "Error: copy failed!"
+            )
             if cp_result.returncode == 0:
                 console_print("done.", ConsoleAttr.SUCCESS)
-            else:
-                console_print("failed!", ConsoleAttr.ERROR)
-                sys.exit(1)
 
 
 def copy_uefi_files(vm) -> None:
@@ -568,11 +576,15 @@ def copy_uefi_files(vm) -> None:
     # Check OVMF code symlink
     if not os.path.exists("OVMF_CODE.fd") and not os.path.islink("OVMF_CODE.fd"):
         console_print("Creating OVMF_CODE.fd symlink...", ConsoleAttr.INFO)
-        subprocess.run(["ln", "-sf", OVMF_CODE, "OVMF_CODE.fd"], check=True)  # nosec
+        run_subprocess(
+            ["ln", "-sf", OVMF_CODE, "OVMF_CODE.fd"], "Error: symlink failed!"
+        )
     # Check OVMF vars file
     if not os.path.exists(f"{vm}_OVMF_VARS.fd"):
         console_print(f"Creating {vm}_OVMF_VARS.fd file...", ConsoleAttr.INFO)
-        subprocess.run(["cp", OVMF_VARS, f"{vm}_OVMF_VARS.fd"], check=True)  # nosec
+        run_subprocess(
+            ["cp", OVMF_VARS, f"{vm}_OVMF_VARS.fd"], "Error: copy failed!"
+        )
 
 
 def is_vm_running(vm) -> bool:
@@ -597,11 +609,12 @@ def is_vm_running(vm) -> bool:
         True
     """
     user_id = os.getuid()
-    vm_pid = subprocess.run(
+    vm_pid = run_subprocess(
         ["pgrep", "-u", str(user_id), "-l", "-f", f"-name {vm}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )  # nosec
+        f"Error: failed to check if {vm} is running!",
+        capture_output=True,
+        check=False,
+    )
     if vm_pid.returncode != 0:
         return False
     else:
@@ -631,16 +644,17 @@ def is_tap_in_use(tapnum) -> bool:
         'tap2 is already in use by PID 1234!'
         True
     """
-    tap_pid = subprocess.run(
+    tap_pid = run_subprocess(
         ["pgrep", "-f", f"=[t]ap{tapnum},"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )  # nosec
+        f"Error: interface tap{tapnum} is already in use!",
+        capture_output=True,
+        check=False,
+    )
     if tap_pid.returncode != 0:
         return False
     else:
         pid = tap_pid.stdout.decode("utf-8").split()[0]
-        console_print(f"tap{tapnum} is already in use by PID {pid}!", ConsoleAttr.ERROR)
+        console_print(f"tap{tapnum} is used by PID {pid}!", ConsoleAttr.ERROR)
         return True
 
 
@@ -733,7 +747,7 @@ def create_device_image_file(store) -> None:
         console_print(f"{dev_id} already exists!", ConsoleAttr.SUCCESS)
     else:
         console_print(f"Creating {dev_id}...", ConsoleAttr.INFO)
-        subprocess.run(
+        run_subprocess(
             [
                 "qemu-img",
                 "create",
@@ -744,10 +758,8 @@ def create_device_image_file(store) -> None:
                 dev_filename,
                 store["size"],
             ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )  # nosec
+            f"Error: Failed to create {dev_id}!",
+        )
         if os.path.exists(dev_filename):
             console_print("done.", ConsoleAttr.SUCCESS)
         else:
@@ -838,7 +850,9 @@ def create_vrf_userdata(vm, userdata) -> None:
     vrf_interface = vrf_interfaces[0]
 
     # Replace VRF_INTERFACE in networkd-wait-online override content
-    networkd_wait_online_override_content.replace("VRF_INTERFACE", vrf_interface)
+    networkd_wait_online_override = networkd_wait_online_override_content.replace(
+        "VRF_INTERFACE", vrf_interface
+    )
 
     # Add VRF instructions to the runcmd section
     if "runcmd" not in userdata:
@@ -846,7 +860,7 @@ def create_vrf_userdata(vm, userdata) -> None:
     userdata["runcmd"].extend(
         [
             # Create networkd-wait-online override file
-            f"cat <<'EOF' >{networkd_wait_online_override_file}\n{networkd_wait_online_override_content}\nEOF",
+            f"cat <<'EOF' >{networkd_wait_online_override_file}\n{networkd_wait_online_override}\nEOF",
             # Create vrf-ssh service file
             f"cat <<'EOF' >{vrf_ssh_service_file}\n{vrf_ssh_service_content}\nEOF",
             # Reload systemd services
@@ -963,30 +977,15 @@ def create_cloud_init_seed_img(vm) -> str:
                 yaml.dump(networkconfig, f)
 
         # Create seed image
-        try:
-            seed_cmd = [
-                "cloud-localds",
-                seed_img,
-                f"{tmp_dir}/user-data",
-                f"{tmp_dir}/meta-data",
-            ]
-            if "netplan" in vm["cloud_init"]:
-                seed_cmd.extend(["--network-config", f"{tmp_dir}/network-config"])
-            subprocess.run(
-                seed_cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-            )  # nosec
-        except FileNotFoundError:
-            console_print(
-                "Error: cloud-localds command not found. Please install cloud-image-utils package.",
-                ConsoleAttr.ERROR,
-            )
-            sys.exit(1)
-        except subprocess.CalledProcessError as e:
-            console_print(f"Error creating seed image: {e.stderr}", ConsoleAttr.ERROR)
-            sys.exit(1)
+        seed_cmd = [
+            "cloud-localds",
+            seed_img,
+            f"{tmp_dir}/user-data",
+            f"{tmp_dir}/meta-data",
+        ]
+        if "netplan" in vm["cloud_init"]:
+            seed_cmd.extend(["--network-config", f"{tmp_dir}/network-config"])
+        run_subprocess(seed_cmd, "Error creating seed image file")
         console_print("done.", ConsoleAttr.SUCCESS)
         return seed_img
 
@@ -1027,7 +1026,7 @@ def build_qemu_cmd(vm) -> list:
     Example:
         >>> vm = {'vm_name': 'vm1', 'os': 'linux', ...}
         >>> cmd = build_qemu_cmd(vm)
-        >>> subprocess.run(cmd)
+        >>> run_subprocess(cmd)
     """
     if vm["os"] == "linux":
         script = f"{MASTER_DIR}/scripts/ovs-startup.sh"
@@ -1143,11 +1142,8 @@ def main():
             copy_uefi_files(vm["vm_name"])
             qemu_cmd = build_qemu_cmd(vm)
             console_print(f"Starting {vm['vm_name']}...", ConsoleAttr.INFO)
-            proc = subprocess.run(qemu_cmd)  # nosec
-            if proc.returncode != 0:
-                console_print(f"{vm['vm_name']} failed to start!", ConsoleAttr.ERROR)
-                sys.exit(1)
-            else:
+            proc = run_subprocess(qemu_cmd, f"{vm['vm_name']} failed to start!")
+            if proc.returncode == 0:
                 console_print(f"{vm['vm_name']} started!", ConsoleAttr.SUCCESS)
 
 
