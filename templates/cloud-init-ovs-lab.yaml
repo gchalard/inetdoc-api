@@ -101,6 +101,5 @@ kvm:
                       - fdc0:ZZZZ:a::1/64
                       - fe80:a::1/64
         runcmd:
-          - [ sh, -c, 'netplan apply' ]
-          - [ sh, -c, 'rm /etc/netplan/enp0s1.yaml' ]
-
+          - [sh, -c, "netplan apply"]
+          - [sh, -c, "rm /etc/netplan/enp0s1.yaml"]

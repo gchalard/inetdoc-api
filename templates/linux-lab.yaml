@@ -4,6 +4,22 @@
 # hypervisors. The hypervisor is configured with Open vSwitch (OVS) to connect
 # and manage both virtual and physical networks.
 #
+# YAML key definitions:
+# - kvm: Container for virtual machine definitions.
+#   - vms: List of virtual machines.
+#     - vm_name: Name of the virtual machine.
+#     - os: Operating system type (e.g., linux).
+#     - master_image: Base image file used for the VM.
+#     - force_copy: Boolean flag indicating whether to force copy the master image.
+#     - memory: Amount of memory (in MB) allocated for the VM.
+#     - tapnum: Tap interface number for network configuration.
+#     - devices: List of devices to attach to the VM.
+#       - storage: List of storage devices to attach to the VM.
+#         - dev_name: Name of the supplemental disk file with its extension to set format.
+#         - type: Type of device (e.g., disk).
+#         - size: Size of the disk.
+#         - bus: Bus type (e.g., scsi, virtio, nvme).
+
 # File: linux-lab.yaml
 # Author: Philippe Latu
 # Source: https://gitlab.inetdoc.net/labs/startup-scripts
