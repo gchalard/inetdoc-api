@@ -664,7 +664,7 @@ def is_tap_in_use(tapnum) -> bool:
     if tap_pid.returncode != 0:
         return False
     else:
-        pid = tap_pid.stdout.decode("utf-8").split()[0]
+        pid = tap_pid.stdout.split()[0]
         console_print(f"tap{tapnum} is used by PID {pid}!", ConsoleAttr.ERROR)
         return True
 
