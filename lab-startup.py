@@ -481,9 +481,13 @@ def build_svi_name(tapnum) -> str:
         'dsw-host'
     """
     tap = f"tap{tapnum}"
-    vlan_mode = run_subprocess(["sudo", "ovs-vsctl", "get", "port", tap, "vlan_mode"])
-    tag = run_subprocess(["sudo", "ovs-vsctl", "get", "port", tap, "tag"])
-    switch = run_subprocess(["sudo", "ovs-vsctl", "port-to-br", tap])
+    vlan_mode = run_subprocess(
+        ["sudo", "ovs-vsctl", "get", "port", tap, "vlan_mode"]
+    ).stdout.strip()
+    tag = run_subprocess(
+        ["sudo", "ovs-vsctl", "get", "port", tap, "tag"]
+    ).stdout.strip()
+    switch = run_subprocess(["sudo", "ovs-vsctl", "port-to-br", tap]).stdout.strip()
     if vlan_mode == "access":
         return f"vlan{tag}"
     else:
