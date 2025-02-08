@@ -139,8 +139,13 @@ def read_yaml_template(file) -> str:
     """
     if not os.path.exists(file):
         return "Template file not found!"
-    with open(file, "r") as f:
-        return f.read()
+    try:
+        with open(file, "r") as f:
+            return f.read()
+    except Exception as e:
+        console_print(f"Error: {file} could not be read!", ConsoleAttr.ERROR)
+        print(e)
+        sys.exit(1)
 
 
 def check_args() -> argparse.Namespace:
@@ -207,13 +212,17 @@ def read_yaml(file) -> dict:
         sys.exit(1)
 
     # open the yaml file
-    with open(file, "r") as f:
-        try:
+    try:
+        with open(file, "r") as f:
             data = yaml.safe_load(f)
-        except yaml.YAMLError as exc:
-            console_print(f"Error: {file} is not a valid YAML file!", ConsoleAttr.ERROR)
-            print(exc)
-            sys.exit(1)
+    except yaml.YAMLError as e:
+        console_print(f"Error: {file} is not a valid YAML file!", ConsoleAttr.ERROR)
+        print(e)
+        sys.exit(1)
+    except Exception as e:
+        console_print(f"Error: {file} could not be read!", ConsoleAttr.ERROR)
+        print(e)
+        sys.exit(1)
     return data
 
 
@@ -582,9 +591,7 @@ def copy_uefi_files(vm) -> None:
     # Check OVMF vars file
     if not os.path.exists(f"{vm}_OVMF_VARS.fd"):
         console_print(f"Creating {vm}_OVMF_VARS.fd file...", ConsoleAttr.INFO)
-        run_subprocess(
-            ["cp", OVMF_VARS, f"{vm}_OVMF_VARS.fd"], "Error: copy failed!"
-        )
+        run_subprocess(["cp", OVMF_VARS, f"{vm}_OVMF_VARS.fd"], "Error: copy failed!")
 
 
 def is_vm_running(vm) -> bool:
@@ -767,21 +774,21 @@ def create_device_image_file(store) -> None:
             sys.exit(1)
 
 
-# Create cloud-init VRF entries
-# This is an attempt to override the default systemd-networkd-wait-online as VM
-# startup gets stuck waiting for the default interface to come up.
-# Here we try to designate the VRF interface as the one to wait for.
+# Create cloud-init VRF specific entries
+# Override the default systemd-networkd-wait-online as VM startup gets stuck
+# waiting for the default interface to come up.
+# The VRF interface is the one to wait for.
 networkd_wait_online_override_content = """\
 [Service]
 ExecStart=
-ExecStart=/lib/systemd/systemd-networkd-wait-online --any -o routable -i VRF_INTERFACE"""
+ExecStart=/lib/systemd/systemd-networkd-wait-online -o routable -i VRF_INTERFACE"""
 
 networkd_wait_online_override_file = (
     "/etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf"
 )
 
-# Create a dedicated SSH service for VRF as it is the automation and management
-# interface
+# Create a dedicated SSH service for the VRF as this is the automation and
+# management interface
 vrf_ssh_service_content = """\
 [Unit]
 Description=OpenBSD Secure Shell server
@@ -847,6 +854,12 @@ def create_vrf_userdata(vm, userdata) -> None:
     vrf_interfaces = next(
         iter(vm["cloud_init"]["netplan"]["network"]["vrfs"].values())
     )["interfaces"]
+    if len(vrf_interfaces) == 0:
+        console_print("Error: No VRF interfaces defined!", ConsoleAttr.ERROR)
+        console_print(
+            "Declare at least one interface belonging to the VRF", ConsoleAttr.ERROR
+        )
+        sys.exit(1)
     vrf_interface = vrf_interfaces[0]
 
     # Replace VRF_INTERFACE in networkd-wait-online override content
@@ -860,6 +873,7 @@ def create_vrf_userdata(vm, userdata) -> None:
     userdata["runcmd"].extend(
         [
             # Create networkd-wait-online override file
+            "mkdir -p /etc/systemd/system/systemd-networkd-wait-online.service.d",
             f"cat <<'EOF' >{networkd_wait_online_override_file}\n{networkd_wait_online_override}\nEOF",
             # Create vrf-ssh service file
             f"cat <<'EOF' >{vrf_ssh_service_file}\n{vrf_ssh_service_content}\nEOF",
