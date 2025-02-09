@@ -40,10 +40,40 @@ import subprocess  # nosec B404
 import sys
 
 import yaml
+from enum import Enum
 from colorama import Fore, Style
 from colorama import init as colorama_init
 from schema import And, Optional, Or, Schema, SchemaError
 
+
+# Enum for console print colors
+class ConsoleAttr(Enum):
+    SUCCESS = "success"
+    INFO = "info"
+    ERROR = "error"
+    
+
+def console_print(msg, attr) -> None:
+    """Prints a message to the console its attribute: success, info or error.
+
+    This function prints a message to the console with color attributes. The
+    message is printed in the specified color and the color attributes are reset
+    at the end of the message.
+
+    Args:
+        msg (str): Message to print.
+        attr (str): success, info or error.
+
+    Example:
+        >>> console_print("Hello, World!", success)
+    """
+    if attr == ConsoleAttr.SUCCESS:
+        print(f"{Fore.LIGHTGREEN_EX}{msg}{Style.RESET_ALL}")
+    elif attr == ConsoleAttr.INFO:
+        print(f"{Fore.LIGHTBLUE_EX}{msg}{Style.RESET_ALL}")
+    elif attr == ConsoleAttr.ERROR:
+        print(f"{Fore.LIGHTRED_EX}{msg}{Style.RESET_ALL}")
+        
 
 # Use argparse to check if --help or -h is provided or if the yaml file is provided
 def check_args():
@@ -65,9 +95,7 @@ def read_yaml(file):
         try:
             data = yaml.safe_load(f)
         except yaml.YAMLError as exc:
-            print(
-                f"{Fore.LIGHTRED_EX}Error: {file} is not a valid YAML file!{Style.RESET_ALL}"
-            )
+            console_print(f"Error: {file} is not a valid YAML file!", ConsoleAttr.ERROR)
             print(exc)
             sys.exit(1)
     return data
@@ -93,7 +121,7 @@ def check_yaml_declaration(data):
     try:
         switch_schema.validate(data)
     except SchemaError as e:
-        print(f"{Fore.LIGHTRED_EX}Error in YAML declaration: {str(e)}{Style.RESET_ALL}")
+        console_print(f"Error in YAML declaration: {str(e)}", ConsoleAttr.ERROR)
         sys.exit(1)
 
     return data
@@ -109,7 +137,7 @@ def run_ovs_command(command):
             raise Exception(f"Error executing command: {result.stderr}")
         return result.stdout.strip()
     except Exception as e:
-        print(f"{Fore.LIGHTRED_EX}Error: {str(e)}{Style.RESET_ALL}")
+        console_print(f"Error: {str(e)}", ConsoleAttr.ERROR)
         sys.exit(1)
 
 
@@ -177,52 +205,43 @@ def configure_switch_ports(switch, switch_config):
     for port in get_port_parameters(switch, switch_config):
         # Check if the port exists on the switch with the right name
         if check_port_exists(switch, port["name"]):
+            ovs_params = []
             # Check if the right vlan_mode is set
             current_mode = get_port_vlan_mode(port["name"])
             if current_mode != port["vlan_mode"]:
-                run_ovs_command(
-                    ["set", "port", port["name"], f'vlan_mode={port["vlan_mode"]}']
-                )
-                print(
-                    f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} vlan_mode changed to {port['vlan_mode']}{Style.RESET_ALL}"
-                )
+                ovs_params.append(f'vlan_mode={port["vlan_mode"]}')
+                # Reset the trunk list if the port is changed to access mode
+                if port["vlan_mode"] == "access":
+                    ovs_params.append("trunks=[]")
+                # Reset the tag if the port is changed to trunk mode
+                elif port["vlan_mode"] == "trunk":
+                    ovs_params.append("tag=[]")
+                console_print(f">> Port {port['name']} vlan_mode changed to {port['vlan_mode']}", ConsoleAttr.SUCCESS)
             else:
-                print(
-                    f"{Fore.LIGHTGREEN_EX}>> Port {port['name']} vlan_mode is already set to {port['vlan_mode']}{Style.RESET_ALL}"
-                )
+                console_print(f">> Port {port['name']} vlan_mode is already set to {port['vlan_mode']}", ConsoleAttr.INFO)
 
             # Define the VLAN the port belongs to in access mode
             if port["vlan_mode"] == "access":
                 current_tag = get_port_tag(port["name"])
                 if current_tag != str(port["tag"]):
-                    run_ovs_command(["set", "port", port["name"], f'tag={port["tag"]}'])
-                    print(
-                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} tag changed to {port['tag']}{Style.RESET_ALL}"
-                    )
+                    ovs_params.append(f'tag={port["tag"]}')
+                    console_print(f">> Port {port['name']} tag changed to {port['tag']}", ConsoleAttr.SUCCESS)
                 else:
-                    print(
-                        f"{Fore.LIGHTGREEN_EX}>> Port {port['name']} tag is already set to {port['tag']}{Style.RESET_ALL}"
-                    )
+                    console_print(f">> Port {port['name']} tag is already set to {port['tag']}", ConsoleAttr.INFO)
 
             # Define the allowed VLAN list for the port in trunk mode
             elif port["vlan_mode"] == "trunk":
                 current_trunks = get_port_trunks(port["name"])
                 if current_trunks != port["trunks"]:
                     trunk_vlans = "[" + ",".join(map(str, port["trunks"])) + "]"
-                    run_ovs_command(
-                        ["set", "port", port["name"], f"trunks={trunk_vlans}"]
-                    )
-                    print(
-                        f"{Fore.LIGHTBLUE_EX}>> Port {port['name']} trunk list changed to {trunk_vlans}{Style.RESET_ALL}"
-                    )
+                    ovs_params.append(f'trunks={trunk_vlans}')
+                    console_print(f">> Port {port['name']} trunk list changed to {trunk_vlans}", ConsoleAttr.SUCCESS)
                 else:
-                    print(
-                        f"{Fore.LIGHTGREEN_EX}>> Port {port['name']} trunks are already set to {current_trunks}{Style.RESET_ALL}"
-                    )
+                    console_print(f">> Port {port['name']} trunks are already set to {current_trunks}", ConsoleAttr.INFO)
+            if ovs_params:
+                run_ovs_command(["set", "port", port["name"]] + ovs_params)
         else:
-            print(
-                f"{Fore.LIGHTRED_EX}>> Port {port['name']} does not exist on switch {switch}{Style.RESET_ALL}"
-            )
+            console_print(f">> Port {port['name']} does not exist on switch {switch}", ConsoleAttr.ERROR)
             sys.exit(1)
 
 
@@ -240,11 +259,11 @@ def main():
         if check_switch_exists(sw):
             existing_switches.append(sw)
         else:
-            print(f"{Fore.RED}>> Switch {sw} does not exist!{Style.RESET_ALL}")
+            console_print(f"Error: Switch {sw} does not exist!", ConsoleAttr.ERROR)
             sys.exit(1)
     print("-" * 40)
     for sw in existing_switches:
-        print(f"Configuring switch {Style.BRIGHT}{sw}{Style.RESET_ALL}")
+        console_print(f"Switch {sw} exists", ConsoleAttr.INFO)
         configure_switch_ports(sw, conf)
     print("-" * 40)
 
