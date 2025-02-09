@@ -87,7 +87,12 @@ This script starts Cisco Nexus 9000v Switches such as 9300 or 9500.
 
 ## Python Scripts
 
-These declarative scripts can be used to start multiple virtual machines.
+These declarative scripts can be used to configure Open vSwitch ports and launch
+multiple virtual machines with additional storage devices and cloud-init
+configuration options.
+
+Installation of the `python3-colorama` and `python3-schema` packages on a Debian
+system is required to run the Python scripts.
 
 ### lab-startup.py
 
