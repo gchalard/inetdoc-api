@@ -23,10 +23,10 @@ lint:
     - black@25.1.0
     - isort@6.0.0
     - ruff@0.9.5
-    - checkov@3.2.368
+    - checkov@3.2.369
     - git-diff-check
     - markdownlint@0.44.0
-    - prettier@3.4.2
+    - prettier@3.5.0
     - shellcheck@0.10.0
     - shfmt@3.6.0
     - trivy@0.59.1

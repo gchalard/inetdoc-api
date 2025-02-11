@@ -38,9 +38,9 @@ import argparse
 import os
 import subprocess  # nosec B404
 import sys
+from enum import Enum
 
 import yaml
-from enum import Enum
 from colorama import Fore, Style
 from colorama import init as colorama_init
 from schema import And, Optional, Or, Schema, SchemaError
@@ -51,7 +51,7 @@ class ConsoleAttr(Enum):
     SUCCESS = "success"
     INFO = "info"
     ERROR = "error"
-    
+
 
 def console_print(msg, attr) -> None:
     """Prints a message to the console its attribute: success, info or error.
@@ -73,7 +73,7 @@ def console_print(msg, attr) -> None:
         print(f"{Fore.LIGHTBLUE_EX}{msg}{Style.RESET_ALL}")
     elif attr == ConsoleAttr.ERROR:
         print(f"{Fore.LIGHTRED_EX}{msg}{Style.RESET_ALL}")
-        
+
 
 # Use argparse to check if --help or -h is provided or if the yaml file is provided
 def check_args():
@@ -87,7 +87,7 @@ def check_args():
 def read_yaml(file):
     # check if the yaml file exists
     if not os.path.exists(file):
-        print(f"Error: {file} not found!")
+        console_print(f"Error: {file} not found!", ConsoleAttr.ERROR)
         sys.exit(1)
 
     # open the yaml file
@@ -216,32 +216,53 @@ def configure_switch_ports(switch, switch_config):
                 # Reset the tag if the port is changed to trunk mode
                 elif port["vlan_mode"] == "trunk":
                     ovs_params.append("tag=[]")
-                console_print(f">> Port {port['name']} vlan_mode changed to {port['vlan_mode']}", ConsoleAttr.SUCCESS)
+                console_print(
+                    f">> Port {port['name']} vlan_mode changed to {port['vlan_mode']}",
+                    ConsoleAttr.SUCCESS,
+                )
             else:
-                console_print(f">> Port {port['name']} vlan_mode is already set to {port['vlan_mode']}", ConsoleAttr.INFO)
+                console_print(
+                    f">> Port {port['name']} vlan_mode is already set to {port['vlan_mode']}",
+                    ConsoleAttr.INFO,
+                )
 
             # Define the VLAN the port belongs to in access mode
             if port["vlan_mode"] == "access":
                 current_tag = get_port_tag(port["name"])
                 if current_tag != str(port["tag"]):
                     ovs_params.append(f'tag={port["tag"]}')
-                    console_print(f">> Port {port['name']} tag changed to {port['tag']}", ConsoleAttr.SUCCESS)
+                    console_print(
+                        f">> Port {port['name']} tag changed to {port['tag']}",
+                        ConsoleAttr.SUCCESS,
+                    )
                 else:
-                    console_print(f">> Port {port['name']} tag is already set to {port['tag']}", ConsoleAttr.INFO)
+                    console_print(
+                        f">> Port {port['name']} tag is already set to {port['tag']}",
+                        ConsoleAttr.INFO,
+                    )
 
             # Define the allowed VLAN list for the port in trunk mode
             elif port["vlan_mode"] == "trunk":
                 current_trunks = get_port_trunks(port["name"])
                 if current_trunks != port["trunks"]:
                     trunk_vlans = "[" + ",".join(map(str, port["trunks"])) + "]"
-                    ovs_params.append(f'trunks={trunk_vlans}')
-                    console_print(f">> Port {port['name']} trunk list changed to {trunk_vlans}", ConsoleAttr.SUCCESS)
+                    ovs_params.append(f"trunks={trunk_vlans}")
+                    console_print(
+                        f">> Port {port['name']} trunk list changed to {trunk_vlans}",
+                        ConsoleAttr.SUCCESS,
+                    )
                 else:
-                    console_print(f">> Port {port['name']} trunks are already set to {current_trunks}", ConsoleAttr.INFO)
+                    console_print(
+                        f">> Port {port['name']} trunks are already set to {current_trunks}",
+                        ConsoleAttr.INFO,
+                    )
             if ovs_params:
                 run_ovs_command(["set", "port", port["name"]] + ovs_params)
         else:
-            console_print(f">> Port {port['name']} does not exist on switch {switch}", ConsoleAttr.ERROR)
+            console_print(
+                f">> Port {port['name']} does not exist on switch {switch}",
+                ConsoleAttr.ERROR,
+            )
             sys.exit(1)
 
 
