@@ -665,7 +665,7 @@ def is_tap_in_use(tapnum) -> bool:
         return False
     else:
         pid = tap_pid.stdout.split()[0]
-        console_print(f"tap{tapnum} is used by PID {pid}!", ConsoleAttr.ERROR)
+        console_print(f"tap{tapnum} is already in use by PID {pid}!", ConsoleAttr.ERROR)
         return True
 
 
