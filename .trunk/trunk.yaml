@@ -22,15 +22,15 @@ lint:
     - bandit@1.8.2
     - black@25.1.0
     - isort@6.0.0
-    - ruff@0.9.5
-    - checkov@3.2.369
+    - ruff@0.9.6
+    - checkov@3.2.370
     - git-diff-check
     - markdownlint@0.44.0
-    - prettier@3.5.0
+    - prettier@3.5.1
     - shellcheck@0.10.0
     - shfmt@3.6.0
     - trivy@0.59.1
-    - trufflehog@3.88.5
+    - trufflehog@3.88.8
     - yamllint@1.35.1
 actions:
   disabled:

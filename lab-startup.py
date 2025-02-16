@@ -268,7 +268,9 @@ linux_schema = Schema(
             Optional("hostname"): str,
             Optional("packages"): [str],
             Optional("netplan"): dict,
-            Optional("write_files"): [{"path": str, "content": str}],
+            Optional("write_files"): [
+                {"path": str, "content": str, Optional("append"): bool}
+            ],
             Optional("runcmd"): [Or(str, [str])],
         },
         Optional("devices"): dict,
