@@ -4,8 +4,9 @@ from typing import Optional
 import requests
 
 from utils.schemas import validate_tap, validate_schema, validate_image
-from utils.utilities import is_tap_in_use, configure_tap
+from utils.utilities import is_tap_in_use
 from utils.exceptions import TapInUse
+from utils.ovs_utils import OVSDBManager
 
 @dataclass
 class Resource:
@@ -63,7 +64,7 @@ class Tap(Resource):
     tag : Optional[int] = None
     trunks : Optional[list[int]] = None
     
-    def __init__(self, id: int, tapnum: int, status: str, mode: str, tag: Optional[int] = None, trunks: Optional[list[int]] = list()):
+    def __init__(self, id: int, manager: OVSDBManager, tapnum: int, status: str, mode: str, tag: Optional[int] = None, trunks: Optional[list[int]] = list()):
         super().__init__(
             id = id,
             type = "TAP",
@@ -75,6 +76,7 @@ class Tap(Resource):
         self.tag = tag
         self.trunks = trunks
         self.tapnum = tapnum
+        self.manager = manager
         
         # validate schema
         print("Validating schema")
@@ -97,11 +99,11 @@ class Tap(Resource):
         print("Tap not in use")
         
         # configure the tap
-        configure_tap(
-            name=self.name,
-            mode=self.mode,
-            tag=self.tag,
-            trunks=self.trunks
+        self.manager.set_tap(
+            tap_name=self.name,
+            vlan_mode=self.mode,
+            tag=self.tag if self.mode == "access" else [],
+            trunks=self.trunks if self.mode == "trunk" else []
         )
         
         
