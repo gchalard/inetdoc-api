@@ -6,6 +6,7 @@ from flask import request, jsonify
 ### CUSTOM LIBRARY ###
 from utils.utilities import *
 from utils.exceptions import TapInUse
+from utils.ovs_utils import OVSDBManager
 from app.models.resources import Tap
 
 class ResourceController:
@@ -39,13 +40,13 @@ class ResourceController:
             "status": "success"
         }, 200)
         
-    def create_tap(self):
+    def create_tap(self, ovs_manager: OVSDBManager):
         data = request.get_json()
         
         print(f"Request received : {data}")
         
         try:
-            tap = Tap(**data)
+            tap = Tap(manager=ovs_manager, **data)
             
         except TapInUse:
             return jsonify(
@@ -62,9 +63,15 @@ class ResourceController:
             
         return jsonify(
             {
-                "status": "success"
+                "status": "success",
+                **data
             }, 200
         )
+        
+    def get_taps(self, ovs_manager: OVSDBManager):
+        return jsonify(
+            ovs_manager.get_taps()
+        ), 200
         
         
     def create_vm(self):
