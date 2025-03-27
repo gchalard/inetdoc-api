@@ -1,0 +1,2 @@
+class TapInUse(Exception):
+    pass
