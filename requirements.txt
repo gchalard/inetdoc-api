@@ -1,3 +1,6 @@
 flask
 colorama
 schema
+PyYAML
+requests
+ovsdbapp
