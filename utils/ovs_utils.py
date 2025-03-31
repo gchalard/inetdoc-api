@@ -14,7 +14,7 @@ class OVSDBManager:
     """Class for managing OVSDB connections and operations"""
 
     # Class constants
-    OVS_CONNECTION = "unix:/tmp/ovs-forwarded.sock"
+    OVS_CONNECTION = "unix:/var/run/openvswitch/db.sock"
     OVSDB_CONNECTION_TIMEOUT = 30
 
     def __init__(self, auto_connect=True):
