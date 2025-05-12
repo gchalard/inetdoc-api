@@ -1,0 +1,12 @@
+#GET http://127.0.0.1:30001/resources/taps
+
+POST http://localhost:30001/resources/taps/ HTTP/1.1
+Content-Type: application/json
+
+{
+    "id": 1,
+    "tapnum": 108,
+    "status": "active",
+    "mode": "trunk",
+    "trunks": [405, 406]
+}
