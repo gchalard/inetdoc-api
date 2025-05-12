@@ -19,14 +19,38 @@ tap_schema = Schema(
     }
 )
 
-def validate_tap(data: Any, **kwargs: Dict[str, Any]):
+def validate_tap(data: Dict[str, Any], **kwargs: Dict[str, Any]):
     
     print(f"Validating schema with data : {data}")
     
-    try:
-        tap_schema.validate(data)
-    except SchemaError as e:
-        raise SchemaError(f"Base schema validation error: {e}")
+    if data.get("mode") == "access" and "trunks" not in data:
+        schema = Schema(
+            {
+                "tap_name": And(str, Regex(r'^tap[0-9]*$')),
+                "mode": And(str, lambda mode : mode == "access"),
+                "tapnum": int,
+                "tag": int
+            }
+        )
+        try:
+            schema.validate(data)
+        except SchemaError as e:
+            raise SchemaError(f"Base schema validation error: {e}")
+
+    # If mode is "trunk", ensure "trunks" is present
+    if data.get("mode") == "trunk" and "tag" not in data:
+        schema = Schema(
+            {
+                "tap_name": And(str, Regex(r'^tap[0-9]*$')),
+                "mode": And(str, lambda mode : mode == "trunk"),
+                "tapnum": int,
+                "trunks": [int]
+            }
+        )
+        try:
+            schema.validate(data)
+        except SchemaError as e:
+            raise SchemaError(f"Base schema validation error: {e}")
     
     print("Base schema validated")
 
