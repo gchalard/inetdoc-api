@@ -4,3 +4,5 @@ schema
 PyYAML
 requests
 ovsdbapp
+flask-sqlalchemy
+boto3
