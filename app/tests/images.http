@@ -1,0 +1,25 @@
+# GET http://localhost:30001/resources/images/
+
+POST http://localhost:30001/resources/images/
+Content-Type: application/json
+
+{
+    "name": "test-image-debian13-s3",
+    "format": "qcow2",
+    "url": "debian/debian-13-generic-amd64.qcow2",
+    "packages": [],
+    "users": [
+        {
+            "username": "etu",
+            "password": "password",
+            "groups": [
+                "sudo",
+                "adm"
+            ],
+            "shell": "/bin/bash",
+            "ssh_keys": [
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBYBnlAVZp4KDcTmxhkcexv3ms0acbRuBza4qkVpTE3g guilhemcharardperennou@bob"
+            ]
+        }
+    ]
+}

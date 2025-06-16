@@ -1,0 +1,33 @@
+
+
+POST http://localhost:30001/resources/cloud-init/
+Content-Type: application/json
+
+{
+    "name": "test-disk-toto",
+    "network-config": 
+        {
+            "version": 2,
+            "renderer": "networkd",
+            "ethernets": {
+                "enp0s1": {
+                    "nameservers": {
+                        "addresses": [
+                            "172.16.0.2",
+                            "2001:678:3fc:3::2"
+                        ]
+                    },
+                    "dhcp4": true,
+                    "dhcp6": true,
+                    "accept-ra": true
+                }
+            }
+        },
+    "userdata": {
+        "password": "toto"
+    },
+    "metadata": {
+        "instance-id": "test-vm",
+        "local-hostname": "test-vm"
+    }
+}

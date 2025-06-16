@@ -1,0 +1,10 @@
+# GET http://localhost:30001/resources/disks/
+
+POST http://localhost:30001/resources/disks/
+Content-Type: application/json
+
+{
+    "name": "test-disk-2",
+    "status": "available",
+    "size": 5
+}

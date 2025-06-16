@@ -1,0 +1,16 @@
+# GET http://localhost:30001/resources/vms/
+
+POST http://localhost:30001/resources/vms/
+Content-Type: application/json
+
+{
+    "name": "test-vm",
+    "status": "available",
+    "ram": 4,
+    "vcpus": 2,
+    "os_family": "linux",
+    "image_id": 2,
+    "disk_id": 2,
+    "tap_id": 2,
+    "cloudinit_id": 2
+}
