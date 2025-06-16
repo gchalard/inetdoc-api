@@ -8,12 +8,22 @@ import re
 import subprocess
 import sys
 from schema import And, Optional, Or, Schema, SchemaError
-from typing import Optional
+import time
+from typing import Optional, List, Dict
 import yaml
 
 ### LIBRARY IMPORT ###
 from utils.console_attr import ConsoleAttr, console_print
 from utils.constants import *
+
+
+### CONSTANTS
+ALLOWED_CONFIG_TYPE = [
+    "cloud-config",
+    "network-config"
+]
+
+CLOUD_INIT_FILES_DIR = "cloud_init_files"
 
 def run_subprocess(
     cmd, error_msg, capture_output=False, check=True
@@ -483,53 +493,76 @@ def validate_cloud_init_config(config_file_path: str, schema_type: str) -> subpr
     run_subprocess(cmd=args, error_msg="Failed validating cloud-init config file")
 
 def create_cloud_init_image(
-        network_config: dict,
-        useradata: dict,
-        metadata: dict,
-        name: str
+        name: str,
+        network_config: Optional[Dict[str,str]] = dict(),
+        useradata: Optional[dict] = dict(),
+        metadata: Optional[dict] = dict()
 ) -> subprocess.CompletedProcess :
-    time = datetime.datetime.time()
+    
+    print("Creating the cloud init disk...")
+    time = datetime.datetime.now().time().strftime("%d%m%Y%H%M%S")
 
+    print("userdata: ", useradata)
+    print("metadata: ", metadata)
+    print("network_config: ", network_config)
+    
+    if not os.path.exists(CLOUD_INIT_FILES_DIR):
+        os.makedirs(CLOUD_INIT_FILES_DIR)
+    
     # Create the network_config yaml file
     network_config_file_name = f"{time}_network_config.yaml"
-    network_config_file_path = Path.joinpath(CLOUD_INIT_FILES_DIR, network_config_file_name)
+    network_config_file_path = Path(CLOUD_INIT_FILES_DIR) / network_config_file_name
     try :
-        yaml.dump_all(network_config, network_config_file_path)
+        with open(network_config_file_path, "w") as network_config_file:
+            yaml.dump(network_config, network_config_file)
     except Exception as e :
+        print(f"Failed creating cloud-init network config file : {e}")
         raise yaml.error.YAMLError(e)
-    try:
-        validate_cloud_init_config(network_config_file_path, "network-config")
-    except SystemExit:
-        sys.exit(1)
+    # try:
+    #     validate_cloud_init_config(network_config_file_path, "network-config")
+    # except SystemExit as e: 
+    #     print(f"Failed validating cloud-init network config file : {e}")
+    #     sys.exit(1)
 
     # Create the userdata config yaml file
     useradata_config_file_name = f"{time}_userdata.yaml"
-    useradata_config_file_path = Path.joinpath(CLOUD_INIT_FILES_DIR, useradata_config_file_name)
+    useradata_config_file_path = Path(CLOUD_INIT_FILES_DIR) / useradata_config_file_name
     try :
-        yaml.dump_all(useradata, useradata_config_file_path)
+        with open(useradata_config_file_path, "w") as useradata_config_file:
+            useradata_config_file.write("#cloud-config\n")
+            yaml.dump(useradata, useradata_config_file)
     except Exception as e :
+        print(f"Failed creating cloud-init user data config file : {e}")
         raise yaml.error.YAMLError(e)
-    try:
-        validate_cloud_init_config(useradata_config_file_path, "cloud-config")
-    except SystemExit:
-        sys.exit(1)
+    # try:
+    #     validate_cloud_init_config(useradata_config_file_path, "cloud-config")
+    # except SystemExit:
+    #     sys.exit(1)
 
     # Create the metadata config yaml file
     metadata_config_file_name = f"{time}_metadata.yaml"
-    metadata_config_file_path = Path.joinpath(CLOUD_INIT_FILES_DIR, metadata_config_file_name)
+    metadata_config_file_path = Path(CLOUD_INIT_FILES_DIR) / metadata_config_file_name
     try :
-        yaml.dump_all(metadata, metadata_config_file_path)
+        with open(metadata_config_file_path, "w") as metadata_config_file:
+            print("metadata: ", metadata)
+            yaml.dump(metadata, metadata_config_file)
     except Exception as e :
+        print(f"Failed creating cloud-init metadata config file : {e}")
         raise yaml.error.YAMLError(e)
     
     args = [
-        "cloud-localds",
-        "--network-config",
-        network_config_file_path,
-        f"{name}.img",
-        useradata_config_file_path,
-        metadata_config_file_path
+        "cloud-localds"
     ]
+    
+    if network_config != dict():
+        args.append("--network-config")
+        args.append(network_config_file_path)
+    
+    args.append(f"{name}.img")
+    args.append(useradata_config_file_path)
+        
+    if metadata != dict():
+        args.append(metadata_config_file_path)
     
     run_subprocess(
         cmd=args,
@@ -562,3 +595,122 @@ def configure_tap(name: str, mode: str, tag: Optional[int] = None, trunks: Optio
     
     return result.returncode
         
+
+def is_image_in_use(name: str) -> bool:
+    """
+    Check whether an image is in use by a VM.
+    
+    Args:
+        name (str): The name of the image to check.
+        
+    Returns:
+        bool: True if the image is in use, False otherwise.
+    """
+    cmd = f"pgrep -a qemu | grep {name}"
+    try:
+        output = subprocess.check_output(cmd, shell=True)
+    except subprocess.CalledProcessError:
+        return False
+    if output:
+        return True
+    
+    return False
+
+def is_disk_in_use(name: str) -> bool:
+    """
+    Check whether a disk is in use by a VM.
+
+    Args:
+        name (str): The name of the disk to check.
+
+    Returns:
+        bool: True if the disk is in use, False otherwise.
+    """
+    
+    cmd = f"pgrep -a qemu | grep {name}"
+    try:
+        output = subprocess.check_output(cmd, shell=True)
+    except subprocess.CalledProcessError:
+        return False
+    if output:
+        return True
+    
+    return False
+
+def tpm_emulate(path: Path)->None:
+    """Run the software TPM emulator
+
+    Args:
+        path (Path): The path to the software TPM directory
+        
+    Raises:
+        SystemExit: If the command fails
+        FileNotFoundError: If the TPM directory is not found
+    """
+    
+    wait = 0
+    
+    cmd = [
+        "swtpm",
+        "socket",
+        "--tpmstate",
+        f"dir={path}",
+        "--ctrl",
+        f"type=unixio,path={path}/swtpm-sock",
+        "--log",
+        f"file={path}/swtpm.log",
+        "--tpm2",
+        "--terminate"
+    ]
+    
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    while not os.path.exists(f"{path}/swtpm-sock") and wait < 20:
+        print("Waiting for swtpm to start...")
+        time.sleep(1)
+        wait += 1
+    
+def customize_image(
+    image: Path,
+    username: str,
+    password: Optional[str] = None,
+    shell: Optional[str] = "/bin/bash",
+    groups: Optional[List[str]] = None,
+    ssh_keys: Optional[List[str]] = None,
+    packages: Optional[List[str]] = None  
+) -> None:
+    
+    cmd = [
+        "virt-customize",
+        "--format",
+        "qcow2",
+        "--update",
+        "--run-command",
+        f"adduser --gecos \"\" --disabled-password {username}{' --shell ' + shell if shell else ''}"
+    ]
+
+    if password:
+        cmd.append("--password")
+        cmd.append(f"{username}:password:{password}")
+
+    if groups:
+        for group in groups:
+            cmd.append("--run-command")
+            cmd.append(f"adduser {username} {group}")
+
+    if ssh_keys:
+        for key in ssh_keys:
+            cmd.append("--ssh-inject")
+            cmd.append(f"{username}:string:{key}")
+            
+    if packages:
+        cmd.append("--install")
+        cmd.append(f"{','.join(packages)}")
+            
+    cmd.append("-a")
+    cmd.append(f"{image}")
+
+    run_subprocess(
+        cmd=cmd,
+        error_msg="Failed to customize image"
+    )

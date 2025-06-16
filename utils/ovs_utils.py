@@ -91,7 +91,7 @@ class OVSDBManager:
                     print(f"Setting tag to {tag} from {cur_conf['tag']}")
                     res = self.ovs.db_set("Port", tap_name, ("tag", tag)).execute(check_error = True)
                     print(f"Result: {res}")
-                if cur_conf["trunks"] != trunks and vlan_mode == "trunks":
+                if cur_conf["trunks"] != trunks and vlan_mode == "trunk":
                     print(f"Setting trunks to {trunks} from {cur_conf['trunks']}")
                     res = self.ovs.db_set("Port", tap_name, ("trunks", trunks)).execute(check_error = True)
                     print(f"Result: {res}")
